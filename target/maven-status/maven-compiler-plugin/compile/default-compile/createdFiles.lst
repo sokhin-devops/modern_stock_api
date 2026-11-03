@@ -15,9 +15,9 @@ com\modernstock\purchase\PurchaseOrder$Status.class
 com\modernstock\purchase\PurchaseService$PoLineRequest.class
 com\modernstock\business\Warehouse.class
 com\modernstock\money\PaymentResponse.class
-com\modernstock\inventory\TransferService$ReceiveLineRequest.class
 com\modernstock\business\BranchScope.class
 com\modernstock\inventory\TransferService$TransferLineRequest.class
+com\modernstock\inventory\TransferService$TransferReceiveRequest.class
 com\modernstock\catalog\CatalogController$UnitResponse.class
 com\modernstock\publicsite\ContactMessageRepository.class
 com\modernstock\purchase\PurchaseOrderRepository.class
@@ -29,9 +29,9 @@ com\modernstock\inventory\AdjustmentService$AdjustmentResponse.class
 com\modernstock\inventory\StockBatchRepository.class
 com\modernstock\auth\UserTokenRepository.class
 com\modernstock\billing\Subscription$Status.class
+com\modernstock\inventory\TransferService$TransferReceiveLineRequest.class
 com\modernstock\purchase\PurchaseOrder.class
 com\modernstock\publicsite\ContactMessage$Status.class
-com\modernstock\purchase\PurchaseService$ReceiveRequest.class
 com\modernstock\inventory\AdjustmentService$AdjustmentLineResponse.class
 com\modernstock\sale\PosService$CheckoutResponse.class
 com\modernstock\currency\ExchangeRateController$RateResponse.class
@@ -109,7 +109,6 @@ com\modernstock\sale\Invoice.class
 com\modernstock\admin\PlatformSettings.class
 com\modernstock\inventory\StockAdjustment$Status.class
 com\modernstock\inventory\TransferService.class
-com\modernstock\inventory\TransferService$ReceiveRequest.class
 com\modernstock\business\BusinessContextFilter.class
 com\modernstock\catalog\Product.class
 com\modernstock\partner\PartnerController$SupplierResponse.class
@@ -120,7 +119,6 @@ com\modernstock\member\InvitationService$InvitationResponse.class
 com\modernstock\purchase\GoodsReceipt.class
 com\modernstock\member\Invitation.class
 com\modernstock\purchase\PurchaseService$QuickPurchaseRequest.class
-com\modernstock\purchase\PurchaseService$ReceiveLineRequest.class
 com\modernstock\inventory\StockService$Pick.class
 com\modernstock\catalog\ProductService$BranchPriceRequest.class
 com\modernstock\catalog\ProductService$ProductUnitRequest.class
@@ -259,6 +257,7 @@ com\modernstock\business\BranchService$BranchRequest.class
 com\modernstock\inventory\StockBatch.class
 com\modernstock\catalog\CatalogController$CategoryRequest.class
 com\modernstock\catalog\ProductRepository.class
+com\modernstock\purchase\PurchaseService$GoodsReceiptRequest.class
 com\modernstock\money\Payment.class
 com\modernstock\partner\PartnerController.class
 com\modernstock\sale\CashShiftService.class
@@ -278,6 +277,7 @@ com\modernstock\money\Allocation.class
 com\modernstock\member\RoleRepository.class
 com\modernstock\common\Dates.class
 com\modernstock\common\Phones.class
+com\modernstock\purchase\PurchaseService$GoodsReceiptLineRequest.class
 com\modernstock\auth\UserToken.class
 com\modernstock\inventory\StockService.class
 com\modernstock\inventory\StockMovement$Type.class

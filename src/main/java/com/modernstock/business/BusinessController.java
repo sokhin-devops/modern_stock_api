@@ -28,14 +28,14 @@ public class BusinessController {
 
     @Operation(summary = "The open business")
     @GetMapping
-    public BusinessResponse get() {
+    public BusinessResponse getBusiness() {
         return businesses.current();
     }
 
     @Operation(summary = "Edit the business profile")
     @PutMapping
     @PreAuthorize("hasAuthority('business:manage')")
-    public BusinessResponse update(@Valid @RequestBody UpdateBusinessRequest req) {
+    public BusinessResponse updateBusiness(@Valid @RequestBody UpdateBusinessRequest req) {
         return businesses.update(req);
     }
 
@@ -50,7 +50,7 @@ public class BusinessController {
 
     @Operation(summary = "Business settings", description = "VAT, riel rounding, discount limit, negative stock, receipt footer.")
     @GetMapping("/settings")
-    public BusinessSettings settings() {
+    public BusinessSettings getSettings() {
         return settings.get();
     }
 

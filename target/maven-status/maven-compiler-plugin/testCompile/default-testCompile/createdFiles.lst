@@ -1,11 +1,13 @@
+com\modernstock\LocalRun.class
 com\modernstock\MembersAndPermissionsTest.class
 com\modernstock\support\IntegrationTest.class
-com\modernstock\ContextLoadsTest.class
 com\modernstock\ConcurrentCheckoutTest.class
-com\modernstock\TransferTest.class
+com\modernstock\BatchesAndExpiryTest.class
 com\modernstock\support\ApiTest.class
-com\modernstock\AccountAndTenancyTest.class
 com\modernstock\SellingAndBuyingTest.class
 com\modernstock\support\ApiTest$Shop.class
 com\modernstock\support\ApiTest$Res.class
 com\modernstock\OpenApiExportTest.class
+com\modernstock\ContextLoadsTest.class
+com\modernstock\TransferTest.class
+com\modernstock\AccountAndTenancyTest.class

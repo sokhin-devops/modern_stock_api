@@ -1,0 +1,6406 @@
+openapi: 3.1.0
+info:
+  title: ModernStock API
+  description: |
+    REST API for **ModernStock**, a stock management system for small businesses in Cambodia.
+
+    **How to try it**
+    1. `POST /auth/login` with the demo account `owner@demo.com` / `Demo@1234` (dev profile), or sign up.
+    2. Copy `accessToken`, click **Authorize**, paste it into **bearer**.
+    3. `GET /me/businesses`, then put the business `id` into **business** (`X-Business-Id`).
+       Optionally put a branch ID, or `all`, into **branch** (`X-Branch-Id`).
+
+    **Conventions**
+    - Money is USD with 2 decimals; riel amounts are whole numbers. Quantities are in the product's base unit
+      unless a `unitId` is given.
+    - Lists take `page`, `size` and `sort` (for example `sort=nameEn,asc`) and return
+      `content`, `page`, `size`, `totalElements`, `totalPages`.
+    - Errors are RFC 7807 `ProblemDetail` with a `code` (for example `INSUFFICIENT_STOCK`) and a message in
+      the `Accept-Language` language (`km` or `en`).
+    - Posted documents are never edited or deleted; they are voided or returned.
+  contact:
+    name: ModernStock thesis team
+  version: v1
+servers:
+- url: /api/v1
+  description: This server
+tags:
+- name: Auth
+  description: "Sign up, log in, tokens, passwords"
+- name: My account
+  description: "Profile, my businesses, my invitations (no X-Business-Id)"
+- name: Public
+  description: Website data and invitation links (no token)
+- name: Business
+  description: "Business profile, setup, settings"
+- name: Branches
+  description: Branches and their warehouses
+- name: Exchange rates
+  description: Daily USD to KHR rate
+- name: Members
+  description: "Members, roles, invitations"
+- name: Products
+  description: "Products, packaging units, barcode lookup"
+- name: Categories and units
+  description: Catalog master data
+- name: Suppliers
+  description: Suppliers and what you owe them
+- name: Customers
+  description: Customers and what they owe
+- name: Purchases
+  description: "Purchase orders, receiving goods, bills, supplier payments"
+- name: POS
+  description: "Counter sales: checkout, sales receipts, invoices, payments received"
+- name: Cash shifts
+  description: Opening and closing the cash drawer in USD and KHR
+- name: Stock
+  description: "Stock levels, stock card, batches"
+- name: Adjustments
+  description: Opening stock and stock adjustments
+- name: Transfers
+  description: Moves inside a branch and transfers between branches
+- name: Billing
+  description: "Plan, limits and usage (Owner only)"
+paths:
+  /units/{id}:
+    put:
+      tags:
+      - Categories and units
+      operationId: updateUnit
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Categories and units
+      summary: Delete a unit
+      description: 409 while products use it.
+      operationId: deleteUnit
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers/{id}:
+    get:
+      tags:
+      - Transfers
+      operationId: getTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Transfers
+      operationId: updateTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Transfers
+      operationId: deleteTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /suppliers/{id}:
+    get:
+      tags:
+      - Suppliers
+      operationId: getSupplier
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Suppliers
+      operationId: updateSupplier
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Suppliers
+      summary: Deactivate a supplier
+      description: Kept for old documents.
+      operationId: deactivateSupplier
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/{id}:
+    get:
+      tags:
+      - Purchases
+      operationId: getPurchaseOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Purchases
+      operationId: updatePurchaseOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Purchases
+      operationId: deletePurchaseOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /products/{id}:
+    get:
+      tags:
+      - Products
+      operationId: getProduct
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Products
+      operationId: updateProduct
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Products
+      summary: Deactivate a product
+      description: "Products are never deleted, because documents point to them."
+      operationId: deactivateProduct
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /products/{id}/branch-prices:
+    get:
+      tags:
+      - Products
+      operationId: branchPrices
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BranchPriceResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Products
+      summary: Set prices for some branches
+      description: A price overrides the default in one branch; sellPrice empty removes
+        it.
+      operationId: setBranchPrices
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/BranchPriceRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BranchPriceResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /me:
+    get:
+      tags:
+      - My account
+      operationId: getMe
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+      security:
+      - bearer: []
+    put:
+      tags:
+      - My account
+      summary: "Edit my profile, language and appearance"
+      operationId: updateMe
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+      security:
+      - bearer: []
+  /me/password:
+    put:
+      tags:
+      - My account
+      operationId: changePassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security:
+      - bearer: []
+  /customers/{id}:
+    get:
+      tags:
+      - Customers
+      operationId: getCustomer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Customers
+      operationId: updateCustomer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Customers
+      operationId: deactivateCustomer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /categories/{id}:
+    put:
+      tags:
+      - Categories and units
+      operationId: updateCategory
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Categories and units
+      summary: Delete a category
+      description: 409 while products or sub-categories still use it.
+      operationId: deleteCategory
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /business:
+    get:
+      tags:
+      - Business
+      summary: The open business
+      operationId: getBusiness
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Business
+      summary: Edit the business profile
+      operationId: updateBusiness
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBusinessRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /business/settings:
+    get:
+      tags:
+      - Business
+      summary: Business settings
+      description: "VAT, riel rounding, discount limit, negative stock, receipt footer."
+      operationId: getSettings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Business
+      operationId: updateSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusinessSettings"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /business/onboarding:
+    put:
+      tags:
+      - Business
+      summary: Finish the setup page
+      description: "Second step after POST /me/businesses. Creates the main branch\
+        \ (with a Main warehouse), settings, today's exchange rate, starter units\
+        \ and categories, and the \"Market\" supplier. Runs once."
+      operationId: onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /branches/{id}:
+    get:
+      tags:
+      - Branches
+      operationId: getBranch
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Branches
+      operationId: updateBranch
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Branches
+      summary: Deactivate a branch
+      description: "Branches are never deleted. Not allowed for the main branch, or\
+        \ while transfers to or from it are in transit."
+      operationId: deactivateBranch
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /branches/{branchId}/warehouses/{id}:
+    put:
+      tags:
+      - Branches
+      summary: "Rename a warehouse, move its roles, or deactivate it"
+      description: "A warehouse that sells, receives or still holds stock can't be\
+        \ deactivated."
+      operationId: updateWarehouse
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WarehouseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /units:
+    get:
+      tags:
+      - Categories and units
+      operationId: units
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnitResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Categories and units
+      operationId: createUnit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers:
+    get:
+      tags:
+      - Transfers
+      summary: Transfers of the branches you see
+      description: A transfer shows for both the sending and receiving branch.
+      operationId: listTransfers
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - MOVED
+          - IN_TRANSIT
+          - RECEIVED
+          - RETURNED
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseTransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Transfers
+      summary: Create a draft
+      description: "Same branch = kind MOVE, other branch = kind BRANCH. A draft changes\
+        \ nothing and can be edited or deleted."
+      operationId: createTransfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers/{id}/send:
+    post:
+      tags:
+      - Transfers
+      summary: Send (other branch)
+      description: "Stock leaves the source, earliest expiry first; lines are split\
+        \ per batch. Status IN_TRANSIT."
+      operationId: sendTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers/{id}/return:
+    post:
+      tags:
+      - Transfers
+      summary: Return to sender
+      description: "Instead of receiving: the same batches go back into the source\
+        \ at the same cost."
+      operationId: returnTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers/{id}/receive:
+    post:
+      tags:
+      - Transfers
+      summary: Receive at the destination
+      description: Lines default to what was sent and can't be more. A shortfall becomes
+        a posted "lost in transit" adjustment.
+      operationId: receiveTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferReceiveRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transfers/{id}/move:
+    post:
+      tags:
+      - Transfers
+      summary: Move (same branch)
+      description: Out of one warehouse and into the other in one transaction. Status
+        MOVED.
+      operationId: moveTransfer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /suppliers:
+    get:
+      tags:
+      - Suppliers
+      summary: Search suppliers
+      description: q matches name or phone.
+      operationId: searchSuppliers
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 10
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "name,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseSupplierResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Suppliers
+      operationId: createSupplier
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /supplier-payments:
+    get:
+      tags:
+      - Purchases
+      operationId: listSupplierPayments
+      parameters:
+      - name: supplierId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponsePaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Purchases
+      summary: Pay a supplier
+      description: "Pays the listed bills, or the oldest due bills first. Money left\
+        \ over is an advance."
+      operationId: paySupplier
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierPaymentRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /sales-receipts/{id}/void:
+    post:
+      tags:
+      - POS
+      summary: Void a sale
+      description: Owner or Manager. Stock goes back into the same batches and the
+        payments are voided.
+      operationId: voidSalesReceipt
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoidRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders:
+    get:
+      tags:
+      - Purchases
+      operationId: listPurchaseOrders
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - ORDERED
+          - PARTIALLY_RECEIVED
+          - RECEIVED
+          - CLOSED
+          - CANCELLED
+      - name: supplierId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponsePurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Purchases
+      summary: Create a draft purchase order
+      description: "No approval step: only the Owner and Manager can create them."
+      operationId: createPurchaseOrder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/{id}/receive:
+    post:
+      tags:
+      - Purchases
+      summary: Receive goods
+      description: "Creates a posted goods receipt (stock up, average cost updated)\
+        \ and its bill in one transaction. Warnings list quantity or price differences\
+        \ from the order (three-way match)."
+      operationId: receiveGoods
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoodsReceiptRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoodsReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/{id}/order:
+    post:
+      tags:
+      - Purchases
+      summary: Mark as ordered (sent to the supplier)
+      operationId: markOrdered
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/{id}/close:
+    post:
+      tags:
+      - Purchases
+      summary: Close a partly received order
+      description: Stop waiting for the rest.
+      operationId: closePurchaseOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/{id}/cancel:
+    post:
+      tags:
+      - Purchases
+      summary: Cancel a draft or ordered purchase order
+      operationId: cancelPurchaseOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-orders/quick:
+    post:
+      tags:
+      - Purchases
+      summary: "Save, receive and pay now"
+      description: "For market buying: purchase order, goods receipt, bill and (optionally)\
+        \ payment from one screen."
+      operationId: quickPurchase
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuickPurchaseRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickPurchaseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /public/contact:
+    post:
+      tags:
+      - Public
+      summary: Send a message from the website contact form
+      operationId: sendContactMessage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+        required: true
+      responses:
+        "202":
+          description: Accepted
+      security: []
+  /products:
+    get:
+      tags:
+      - Products
+      summary: Search products
+      description: "q matches name (EN/KM), SKU or barcode. Sort by nameEn, sku, sellPrice..."
+      operationId: searchProducts
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: active
+        in: query
+        description: Default true; false lists deactivated products
+        required: false
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "nameEn,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseProductResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Products
+      summary: Add a product
+      description: Checks the plan's product limit.
+      operationId: createProduct
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /pos/checkout:
+    post:
+      tags:
+      - POS
+      summary: Checkout
+      description: |-
+        Paid in full → sales receipt. Not paid in full → delivery + invoice (named customer with a phone,
+        credit limit checked). Stock is taken earliest expiry first; not enough stock gives 422
+        INSUFFICIENT_STOCK and nothing is saved. Payments are compared in riel; change is given in riel,
+        rounded down to the business's riel step. Example at 4,100: total $12.35 = ៛50,600; paying
+        $10 + ៛10,000 = ៛51,000 gives ៛400 change. If the cashier has an open cash shift in the branch,
+        cash goes into it.
+      operationId: checkout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /payments-received:
+    get:
+      tags:
+      - POS
+      operationId: paymentsReceived
+      parameters:
+      - name: customerId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponsePaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - POS
+      summary: Receive a payment from a customer
+      description: "Pays the listed invoices, or the oldest due first. The rest is\
+        \ a deposit."
+      operationId: receivePayment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceivePaymentRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members/{id}/reset-link:
+    post:
+      tags:
+      - Members
+      summary: Password reset link for a member without email
+      description: Valid 24 hours. Send it by Telegram or show it as a QR code.
+      operationId: resetLink
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members/invitations:
+    get:
+      tags:
+      - Members
+      operationId: listInvitations
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvitationResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Members
+      summary: Invite someone
+      description: Returns the one-time link (valid 7 days). Checks the plan's member
+        limit; pending invitations count as members.
+      operationId: invite
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members/invitations/{id}/resend:
+    post:
+      tags:
+      - Members
+      summary: New link for a pending or expired invitation
+      description: The old link stops working.
+      operationId: resendInvitation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /me/invitations/{key}/decline:
+    post:
+      tags:
+      - My account
+      operationId: declineInvitation
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+  /me/invitations/{key}/accept:
+    post:
+      tags:
+      - My account
+      summary: Accept an invitation (already have an account)
+      description: Returns the business to open.
+      operationId: acceptInvitation
+      parameters:
+      - name: key
+        in: path
+        description: "The token from the link, or the id from GET /me/invitations"
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyBusinessResponse"
+      security:
+      - bearer: []
+  /me/businesses:
+    get:
+      tags:
+      - My account
+      summary: Businesses I belong to
+      description: "After login: none = create your first business; one = open it;\
+        \ several = show the list."
+      operationId: myBusinesses
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyBusinessResponse"
+      security:
+      - bearer: []
+    post:
+      tags:
+      - My account
+      summary: Create a business
+      description: You become its Owner and get a 30-day Pro trial. Then open it (X-Business-Id)
+        and call PUT /business/onboarding.
+      operationId: createBusiness
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyBusinessResponse"
+      security:
+      - bearer: []
+  /exchange-rates:
+    get:
+      tags:
+      - Exchange rates
+      summary: "Rate history, newest first"
+      operationId: listRates
+      parameters:
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseRateResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Exchange rates
+      summary: Set the rate for a day
+      description: rateDate defaults to today. Setting a day twice replaces it.
+      operationId: setRate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RateRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /customers:
+    get:
+      tags:
+      - Customers
+      summary: Search customers
+      description: q matches name or phone; the POS finds customers by phone.
+      operationId: searchCustomers
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 10
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "name,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseCustomerResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Customers
+      summary: Add a customer
+      description: "Cashiers can add a customer from the POS (customer:create_pos),\
+        \ but only with name and phone: credit limit and opening balance need customer:manage."
+      operationId: createCustomer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /categories:
+    get:
+      tags:
+      - Categories and units
+      summary: All categories
+      description: "A tree: parentId points to the parent category."
+      operationId: categories
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Categories and units
+      operationId: createCategory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts/{id}/close:
+    post:
+      tags:
+      - Cash shifts
+      summary: Close a shift
+      description: "Count dollars and riel; the answer shows expected, counted and\
+        \ the difference (+ over, − short) per currency."
+      operationId: closeCashShift
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseShiftRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts/{id}/cash-movements:
+    post:
+      tags:
+      - Cash shifts
+      summary: Add or take cash out of the drawer
+      operationId: addCashMovement
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashMovementRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts/open:
+    post:
+      tags:
+      - Cash shifts
+      summary: Open my cash shift
+      description: One open shift per cashier and branch.
+      operationId: openCashShift
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenShiftRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /branches:
+    get:
+      tags:
+      - Branches
+      summary: All branches with their warehouses
+      description: Main branch first.
+      operationId: listBranches
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BranchResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Branches
+      summary: Add a branch
+      description: Checks the plan's branch limit. Creates a Main warehouse that sells
+        and receives.
+      operationId: createBranch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /branches/{branchId}/warehouses:
+    post:
+      tags:
+      - Branches
+      summary: Add a warehouse to a branch
+      description: sales = the POS sells from it; receiving = goods arrive there.
+        Setting one moves the role from the other warehouse.
+      operationId: addWarehouse
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WarehouseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /auth/verify-email:
+    post:
+      tags:
+      - Auth
+      summary: Verify the email from the link
+      operationId: verifyEmail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security: []
+  /auth/sign-up:
+    post:
+      tags:
+      - Auth
+      summary: Create an account
+      description: The account starts unverified and gets a verification link valid
+        24 hours.
+      operationId: signUp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security: []
+  /auth/sign-up-with-invitation:
+    post:
+      tags:
+      - Auth
+      summary: Join a business from an invitation link as a new account
+      description: "Creates the account (email optional), adds the member and logs\
+        \ in. businessId in the answer is the business to open."
+      operationId: signUpWithInvitation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpWithInvitationRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+      security: []
+  /auth/reset-password:
+    post:
+      tags:
+      - Auth
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security: []
+  /auth/resend-verification:
+    post:
+      tags:
+      - Auth
+      operationId: resendVerification
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRequest"
+        required: true
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security: []
+  /auth/refresh:
+    post:
+      tags:
+      - Auth
+      summary: New access token from the refresh cookie
+      description: The refresh token is replaced on every call.
+      operationId: refresh
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+      security: []
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Log out on this device
+      operationId: logout
+      responses:
+        "200":
+          description: OK
+      security: []
+  /auth/logout-all:
+    post:
+      tags:
+      - Auth
+      summary: Log out from all devices
+      operationId: logoutAll
+      responses:
+        "200":
+          description: OK
+      security:
+      - bearer: []
+  /auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Log in with email or username
+      description: Returns a 15-minute access token. The refresh token is set as the
+        HttpOnly cookie ms_refresh.
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+      security: []
+  /auth/forgot-password:
+    post:
+      tags:
+      - Auth
+      summary: Email a password reset link
+      description: Only for accounts with a verified email. Same answer either way.
+      operationId: forgotPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRequest"
+        required: true
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security: []
+  /adjustments:
+    get:
+      tags:
+      - Adjustments
+      operationId: listAdjustments
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - WAITING_APPROVAL
+          - POSTED
+          - REJECTED
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseAdjustmentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Adjustments
+      summary: Opening stock or an adjustment
+      description: "kind OPENING needs stock:opening and a unitCost per line (it updates\
+        \ the average cost). kind ADJUSTMENT is posted at once with adjustment:post;\
+        \ with only adjustment:request it waits for approval. Removing stock takes\
+        \ the earliest expiry first, expired batches included."
+      operationId: createAdjustment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /adjustments/{id}/reject:
+    post:
+      tags:
+      - Adjustments
+      operationId: rejectAdjustment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /adjustments/{id}/approve:
+    post:
+      tags:
+      - Adjustments
+      operationId: approveAdjustment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members/{id}:
+    delete:
+      tags:
+      - Members
+      summary: Remove a member
+      description: The name stays on old documents.
+      operationId: removeMember
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    patch:
+      tags:
+      - Members
+      summary: "Change a member's role, branch or status"
+      description: Takes effect on the member's next request. The last active Owner
+        can't be changed or disabled.
+      operationId: updateMember
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /bills/{id}:
+    get:
+      tags:
+      - Purchases
+      operationId: getBill
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    patch:
+      tags:
+      - Purchases
+      summary: "Add the supplier's invoice number, change the due date or note"
+      operationId: updateBill
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/summary:
+    get:
+      tags:
+      - Stock
+      summary: Numbers for the dashboard
+      description: "Stock value at average cost, in transit, low stock and expiry\
+        \ counts."
+      operationId: stockSummary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockSummary"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/movements:
+    get:
+      tags:
+      - Stock
+      summary: Stock card (ledger)
+      description: "Every movement, newest first. from/to are dates in Phnom Penh\
+        \ time."
+      operationId: stockMovements
+      parameters:
+      - name: productId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: warehouseId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseMovementRow"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/low:
+    get:
+      tags:
+      - Stock
+      summary: Low stock
+      description: Products at or below their reorder level.
+      operationId: lowStock
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockRow"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/levels:
+    get:
+      tags:
+      - Stock
+      summary: Stock on hand per product
+      description: "Base units, summed over the branches you see. q matches name,\
+        \ SKU or barcode."
+      operationId: stockLevels
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "nameEn,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseStockRow"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/levels/{productId}:
+    get:
+      tags:
+      - Stock
+      summary: "One product: stock per warehouse and batch"
+      operationId: productStock
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductStock"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock/batches:
+    get:
+      tags:
+      - Stock
+      summary: Batches expiring soon
+      description: "Batches in stock that expire within N days, expired ones included."
+      operationId: expiringBatches
+      parameters:
+      - name: expiringInDays
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+        example: 30
+      - name: productId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BatchRow"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /sales-receipts:
+    get:
+      tags:
+      - POS
+      summary: Sales receipts
+      description: Cashiers see only their own sales.
+      operationId: listSalesReceipts
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - POSTED
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseSalesReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /sales-receipts/{id}:
+    get:
+      tags:
+      - POS
+      operationId: getSalesReceipt
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /roles:
+    get:
+      tags:
+      - Members
+      summary: Roles you can give
+      description: "The four built-in roles, then this business's custom roles, with\
+        \ their permissions."
+      operationId: listRoles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /public/plans:
+    get:
+      tags:
+      - Public
+      summary: Plans for the Pricing page
+      description: "The website reads prices from here, so they always match billing."
+      operationId: publicPlans
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlanResponse"
+      security: []
+  /public/invitations/{token}:
+    get:
+      tags:
+      - Public
+      summary: Invitation details for the invitation page
+      description: "Shows the business, role and branch before the person joins. The\
+        \ token is the value from the link."
+      operationId: invitationDetails
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationDetails"
+      security: []
+  /products/barcode/{code}:
+    get:
+      tags:
+      - Products
+      summary: Find a product by scanning
+      description: "Matches the product barcode or a box/pack barcode. Returns the\
+        \ scanned unit, its price in the branch and the stock in the branch's sales\
+        \ warehouse."
+      operationId: findByBarcode
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: branchId
+        in: query
+        description: Defaults to the selected branch (X-Branch-Id)
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BarcodeLookupResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members:
+    get:
+      tags:
+      - Members
+      operationId: listMembers
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /me/invitations:
+    get:
+      tags:
+      - My account
+      summary: Pending invitations sent to my verified email
+      operationId: myInvitations
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyInvitation"
+      security:
+      - bearer: []
+  /invoices:
+    get:
+      tags:
+      - POS
+      operationId: listInvoices
+      parameters:
+      - name: customerId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - UNPAID
+          - PARTLY_PAID
+          - PAID
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseInvoiceResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /invoices/{id}:
+    get:
+      tags:
+      - POS
+      operationId: getInvoice
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /goods-receipts:
+    get:
+      tags:
+      - Purchases
+      operationId: listGoodsReceipts
+      parameters:
+      - name: purchaseOrderId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseGoodsReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /goods-receipts/{id}:
+    get:
+      tags:
+      - Purchases
+      operationId: getGoodsReceipt
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoodsReceiptResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /exchange-rates/current:
+    get:
+      tags:
+      - Exchange rates
+      summary: Rate used today
+      description: "If today's rate is missing, the last one is returned with stale\
+        \ = true."
+      operationId: currentRate
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rate"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /deliveries:
+    get:
+      tags:
+      - POS
+      operationId: listDeliveries
+      parameters:
+      - name: customerId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseDeliveryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /deliveries/{id}:
+    get:
+      tags:
+      - POS
+      operationId: getDelivery
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts:
+    get:
+      tags:
+      - Cash shifts
+      summary: Shifts
+      description: "Cashiers see their own; cash_shift:all sees all, with differences."
+      operationId: listCashShifts
+      parameters:
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseCashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts/{id}:
+    get:
+      tags:
+      - Cash shifts
+      operationId: getCashShift
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /cash-shifts/current:
+    get:
+      tags:
+      - Cash shifts
+      summary: My open shift in a branch
+      description: 404 when no shift is open.
+      operationId: currentCashShift
+      parameters:
+      - name: branchId
+        in: query
+        description: Defaults to the selected branch
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /bills:
+    get:
+      tags:
+      - Purchases
+      summary: Bills
+      description: Sorted by due date. overdue is calculated from the due date.
+      operationId: listBills
+      parameters:
+      - name: supplierId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - UNPAID
+          - PARTLY_PAID
+          - PAID
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseBillResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /billing:
+    get:
+      tags:
+      - Billing
+      summary: "Plan, status and usage"
+      description: "effectivePlanCode is what the limits come from: PRO during the\
+        \ trial, FREE after a plan ends. limit null = unlimited. Subscribing, changing\
+        \ plan and the demo payment come next."
+      operationId: getBilling
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /adjustments/{id}:
+    get:
+      tags:
+      - Adjustments
+      operationId: getAdjustment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /members/invitations/{id}:
+    delete:
+      tags:
+      - Members
+      operationId: cancelInvitation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
+components:
+  schemas:
+    UnitRequest:
+      type: object
+      properties:
+        nameEn:
+          type: string
+          maxLength: 60
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 60
+          minLength: 0
+        symbol:
+          type: string
+          maxLength: 10
+          minLength: 0
+      required:
+      - nameEn
+      - symbol
+    UnitResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        symbol:
+          type: string
+    TransferLineRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+          description: Empty = base unit
+        qty:
+          type: number
+          minimum: 0
+        batchId:
+          type: integer
+          format: int64
+          description: Send this batch on purpose (for example expired goods); empty
+            = earliest expiry first
+      required:
+      - productId
+      - qty
+    TransferRequest:
+      type: object
+      properties:
+        fromWarehouseId:
+          type: integer
+          format: int64
+        toWarehouseId:
+          type: integer
+          format: int64
+          description: "A warehouse, or give toBranchId to use that branch's receiving\
+            \ warehouse"
+        toBranchId:
+          type: integer
+          format: int64
+        carrierNote:
+          type: string
+          maxLength: 255
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransferLineRequest"
+          minItems: 1
+      required:
+      - fromWarehouseId
+      - lines
+    TransferLineResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        unitId:
+          type: integer
+          format: int64
+        unitSymbol:
+          type: string
+        qty:
+          type: number
+        baseQty:
+          type: number
+        batchId:
+          type: integer
+          format: int64
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        unitCost:
+          type: number
+        qtyReceived:
+          type: number
+    TransferResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        kind:
+          type: string
+          enum:
+          - MOVE
+          - BRANCH
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - MOVED
+          - IN_TRANSIT
+          - RECEIVED
+          - RETURNED
+          - VOID
+        fromWarehouseId:
+          type: integer
+          format: int64
+        fromName:
+          type: string
+        fromBranchId:
+          type: integer
+          format: int64
+        toWarehouseId:
+          type: integer
+          format: int64
+        toName:
+          type: string
+        toBranchId:
+          type: integer
+          format: int64
+        sentAt:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+        returnedAt:
+          type: string
+          format: date-time
+        returnReason:
+          type: string
+        carrierNote:
+          type: string
+        note:
+          type: string
+        shortLines:
+          type: integer
+          format: int32
+          description: Lines that arrived short ("Received · 1 short")
+        adjustmentId:
+          type: integer
+          format: int64
+        value:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransferLineResponse"
+    SupplierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+          minLength: 0
+        contactPerson:
+          type: string
+          maxLength: 120
+          minLength: 0
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        telegram:
+          type: string
+          maxLength: 60
+          minLength: 0
+        address:
+          type: string
+          maxLength: 255
+          minLength: 0
+        vatTin:
+          type: string
+          maxLength: 30
+          minLength: 0
+        paymentTermsDays:
+          type: integer
+          format: int32
+          minimum: 0
+        openingBalance:
+          type: number
+          description: What you already owed when you started
+          minimum: 0
+        openingBalanceDate:
+          type: string
+          format: date
+      required:
+      - name
+    SupplierResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        contactPerson:
+          type: string
+        phone:
+          type: string
+        telegram:
+          type: string
+        address:
+          type: string
+        vatTin:
+          type: string
+        paymentTermsDays:
+          type: integer
+          format: int32
+        openingBalance:
+          type: number
+        openingBalanceDate:
+          type: string
+          format: date
+        active:
+          type: boolean
+        balance:
+          type: number
+          description: "What you owe this supplier now, USD"
+    PoLineRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+          description: Empty = base unit
+        qty:
+          type: number
+          minimum: 0
+        unitCost:
+          type: number
+          description: "Cost of one unitId, USD"
+          minimum: 0
+      required:
+      - productId
+      - qty
+      - unitCost
+    PurchaseOrderRequest:
+      type: object
+      properties:
+        supplierId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+          description: Defaults to the selected branch
+        receiveWarehouseId:
+          type: integer
+          format: int64
+          description: Defaults to the branch's receiving warehouse
+        orderDate:
+          type: string
+          format: date
+        expectedDate:
+          type: string
+          format: date
+        discount:
+          type: number
+          minimum: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoLineRequest"
+          minItems: 1
+      required:
+      - lines
+      - supplierId
+    PoLineResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        unitId:
+          type: integer
+          format: int64
+        unitSymbol:
+          type: string
+        qtyOrdered:
+          type: number
+        qtyReceived:
+          type: number
+        unitCost:
+          type: number
+        lineTotal:
+          type: number
+    PurchaseOrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        receiveWarehouseId:
+          type: integer
+          format: int64
+        receiveWarehouseName:
+          type: string
+        orderDate:
+          type: string
+          format: date
+        expectedDate:
+          type: string
+          format: date
+        exchangeRate:
+          type: number
+        subtotal:
+          type: number
+        discount:
+          type: number
+        vat:
+          type: number
+        total:
+          type: number
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - ORDERED
+          - PARTIALLY_RECEIVED
+          - RECEIVED
+          - CLOSED
+          - CANCELLED
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoLineResponse"
+    ProductRequest:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Generated (P00001...) when empty
+          maxLength: 40
+          minLength: 0
+        barcode:
+          type: string
+          maxLength: 40
+          minLength: 0
+        nameEn:
+          type: string
+          maxLength: 160
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 160
+          minLength: 0
+        categoryId:
+          type: integer
+          format: int64
+        baseUnitId:
+          type: integer
+          format: int64
+          description: "Stock is kept in this unit, usually Piece"
+        sellPrice:
+          type: number
+          description: "Default price of one base unit, USD"
+          minimum: 0
+        reorderLevel:
+          type: number
+          minimum: 0
+        leadTimeDays:
+          type: integer
+          format: int32
+          minimum: 0
+        trackExpiry:
+          type: boolean
+        vatExempt:
+          type: boolean
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductUnitRequest"
+      required:
+      - baseUnitId
+      - nameEn
+      - sellPrice
+    ProductUnitRequest:
+      type: object
+      properties:
+        unitId:
+          type: integer
+          format: int64
+        factor:
+          type: number
+          description: "How many base units are in one of this unit, e.g. 24"
+          example: 24
+          minimum: 0
+        barcode:
+          type: string
+          maxLength: 40
+          minLength: 0
+        sellPrice:
+          type: number
+          description: Price for one of this unit; empty = base price × factor
+          minimum: 0
+      required:
+      - factor
+      - unitId
+    ProductResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        sku:
+          type: string
+        barcode:
+          type: string
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        baseUnitId:
+          type: integer
+          format: int64
+        baseUnitSymbol:
+          type: string
+        sellPrice:
+          type: number
+        avgCost:
+          type: number
+          description: Only for members who manage products
+        reorderLevel:
+          type: number
+        leadTimeDays:
+          type: integer
+          format: int32
+        trackExpiry:
+          type: boolean
+        vatExempt:
+          type: boolean
+        active:
+          type: boolean
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductUnitResponse"
+        qtyOnHand:
+          type: number
+          description: Base units on hand in the branches you are looking at
+    ProductUnitResponse:
+      type: object
+      properties:
+        unitId:
+          type: integer
+          format: int64
+        unitSymbol:
+          type: string
+        factor:
+          type: number
+        barcode:
+          type: string
+        sellPrice:
+          type: number
+    BranchPriceRequest:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+        sellPrice:
+          type: number
+          description: Empty removes the override
+          minimum: 0
+      required:
+      - branchId
+      - unitId
+    BranchPriceResponse:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+        sellPrice:
+          type: number
+    UpdateMeRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          maxLength: 120
+          minLength: 0
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        locale:
+          type: string
+          pattern: km|en
+        uiMode:
+          type: string
+          pattern: light|dark|system
+        uiDensity:
+          type: string
+          pattern: comfortable|compact
+      required:
+      - fullName
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        locale:
+          type: string
+        uiMode:
+          type: string
+        uiDensity:
+          type: string
+        emailVerified:
+          type: boolean
+        superAdmin:
+          type: boolean
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          maxLength: 72
+          minLength: 8
+      required:
+      - currentPassword
+      - newPassword
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        devLink:
+          type: string
+    CustomerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+          minLength: 0
+        type:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - COMPANY
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        address:
+          type: string
+          maxLength: 255
+          minLength: 0
+        vatTin:
+          type: string
+          maxLength: 30
+          minLength: 0
+        creditLimit:
+          type: number
+          description: 0 = no limit set
+          minimum: 0
+        paymentTermsDays:
+          type: integer
+          format: int32
+          minimum: 0
+        openingBalance:
+          type: number
+          minimum: 0
+        openingBalanceDate:
+          type: string
+          format: date
+      required:
+      - name
+    CustomerResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - COMPANY
+        phone:
+          type: string
+        address:
+          type: string
+        vatTin:
+          type: string
+        creditLimit:
+          type: number
+        paymentTermsDays:
+          type: integer
+          format: int32
+        openingBalance:
+          type: number
+        openingBalanceDate:
+          type: string
+          format: date
+        active:
+          type: boolean
+        balance:
+          type: number
+          description: "What the customer owes now, USD (negative = deposit)"
+    CategoryRequest:
+      type: object
+      properties:
+        parentId:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+      required:
+      - nameEn
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        parentId:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+    UpdateBusinessRequest:
+      type: object
+      properties:
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+        businessType:
+          type: string
+          minLength: 1
+          pattern: MINI_MART|GROCERY|PHARMACY|COSMETICS|HARDWARE|PHONE_SHOP|WHOLESALE|OTHER
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        email:
+          type: string
+          format: email
+          maxLength: 160
+          minLength: 0
+        address:
+          type: string
+          maxLength: 255
+          minLength: 0
+        province:
+          type: string
+          maxLength: 60
+          minLength: 0
+        vatTin:
+          type: string
+          maxLength: 30
+          minLength: 0
+        themeColor:
+          type: string
+          description: "Palette name or #hex"
+          example: "#1A73E8"
+          maxLength: 20
+          minLength: 0
+        language:
+          type: string
+          pattern: km|en
+      required:
+      - businessType
+      - nameEn
+    BusinessResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        businessType:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        province:
+          type: string
+        vatTin:
+          type: string
+        themeColor:
+          type: string
+        language:
+          type: string
+        status:
+          type: string
+          enum:
+          - SETTING_UP
+          - ACTIVE
+          - SUSPENDED
+          - ARCHIVED
+        onboardingCompleted:
+          type: boolean
+    BusinessSettings:
+      type: object
+      properties:
+        vatEnabled:
+          type: boolean
+          description: VAT 10% on sales
+        vatRate:
+          type: number
+          maximum: 100
+          minimum: 0
+        rielRounding:
+          type: integer
+          format: int32
+          description: "Round riel amounts to 100, 500 or 1000"
+          enum:
+          - "100"
+          - "500"
+          - "1000"
+        maxDiscountPercent:
+          type: number
+          description: "Biggest discount a cashier may give without sale:override,\
+            \ in % of the subtotal"
+          maximum: 100
+          minimum: 0
+        allowNegativeStock:
+          type: boolean
+          description: Blocked by default (PLAIN.md 11.2)
+        receiptFooter:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - maxDiscountPercent
+      - vatRate
+    BranchRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: "Short code; generated (B01, B02...) when empty"
+          maxLength: 20
+          minLength: 0
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+        address:
+          type: string
+          maxLength: 255
+          minLength: 0
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        province:
+          type: string
+          maxLength: 60
+          minLength: 0
+      required:
+      - nameEn
+    OnboardingRequest:
+      type: object
+      properties:
+        mainBranch:
+          $ref: "#/components/schemas/BranchRequest"
+        usdToKhr:
+          type: number
+          example: 4100
+          maximum: 10000
+          minimum: 1000
+        vatEnabled:
+          type: boolean
+        rielRounding:
+          type: integer
+          format: int32
+          enum:
+          - "100"
+          - "500"
+          - "1000"
+          example: 100
+      required:
+      - mainBranch
+      - usdToKhr
+    BranchResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        province:
+          type: string
+        main:
+          type: boolean
+        active:
+          type: boolean
+        warehouses:
+          type: array
+          items:
+            $ref: "#/components/schemas/WarehouseResponse"
+    WarehouseResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        sales:
+          type: boolean
+        receiving:
+          type: boolean
+        active:
+          type: boolean
+    WarehouseRequest:
+      type: object
+      properties:
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+        sales:
+          type: boolean
+        receiving:
+          type: boolean
+        active:
+          type: boolean
+      required:
+      - nameEn
+    ReturnRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          example: Wrong branch
+          maxLength: 255
+          minLength: 0
+      required:
+      - reason
+    TransferReceiveLineRequest:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        qtyReceived:
+          type: number
+          description: Base units that arrived; less than sent = lost in transit
+          minimum: 0
+      required:
+      - itemId
+      - qtyReceived
+    TransferReceiveRequest:
+      type: object
+      properties:
+        toWarehouseId:
+          type: integer
+          format: int64
+          description: Another warehouse of the destination branch; empty = the one
+            chosen when sending
+        lines:
+          type: array
+          description: Only lines that differ; missing lines arrived in full
+          items:
+            $ref: "#/components/schemas/TransferReceiveLineRequest"
+    AllocationRequest:
+      type: object
+      properties:
+        documentId:
+          type: integer
+          format: int64
+          description: Invoice ID or bill ID
+        amount:
+          type: number
+          minimum: 0
+      required:
+      - amount
+      - documentId
+    PaymentLine:
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+          - CASH
+          - KHQR
+          - BANK
+          example: CASH
+        currency:
+          type: string
+          enum:
+          - USD
+          - KHR
+          example: USD
+        amount:
+          type: number
+          description: USD with cents or whole riel
+          example: 10
+          minimum: 0
+        reference:
+          type: string
+          description: Bank or KHQR reference number
+          maxLength: 60
+          minLength: 0
+      required:
+      - amount
+      - currency
+      - method
+    SupplierPaymentRequest:
+      type: object
+      properties:
+        supplierId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        payment:
+          $ref: "#/components/schemas/PaymentLine"
+        allocations:
+          type: array
+          description: Bills to pay (USD). Empty = oldest due bills first
+          items:
+            $ref: "#/components/schemas/AllocationRequest"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - payment
+      - supplierId
+    AllocationLine:
+      type: object
+      properties:
+        toType:
+          type: string
+          enum:
+          - INVOICE
+          - BILL
+          - SALES_RECEIPT
+        toId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        direction:
+          type: string
+          enum:
+          - IN
+          - OUT
+        partyType:
+          type: string
+          enum:
+          - CUSTOMER
+          - SUPPLIER
+          - WALK_IN
+        partyId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        method:
+          type: string
+          enum:
+          - CASH
+          - KHQR
+          - BANK
+        currency:
+          type: string
+          enum:
+          - USD
+          - KHR
+        amount:
+          type: number
+        exchangeRate:
+          type: number
+        amountUsd:
+          type: number
+        unallocatedUsd:
+          type: number
+          description: Left over as a deposit (customer) or advance (supplier)
+        reference:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - POSTED
+          - VOID
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationLine"
+    VoidRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - reason
+    SaleLineResponse:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        unitId:
+          type: integer
+          format: int64
+        unitSymbol:
+          type: string
+        qty:
+          type: number
+        unitPrice:
+          type: number
+        discount:
+          type: number
+        lineTotal:
+          type: number
+    SalesReceiptResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        cashShiftId:
+          type: integer
+          format: int64
+        cashierId:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        soldAt:
+          type: string
+          format: date-time
+        exchangeRate:
+          type: number
+        subtotal:
+          type: number
+        discount:
+          type: number
+        vat:
+          type: number
+        total:
+          type: number
+        totalKhr:
+          type: number
+        changeUsd:
+          type: number
+        changeKhr:
+          type: number
+        status:
+          type: string
+          enum:
+          - POSTED
+          - VOID
+        voidedAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLineResponse"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentResponse"
+    GoodsReceiptLineRequest:
+      type: object
+      properties:
+        purchaseOrderItemId:
+          type: integer
+          format: int64
+        qty:
+          type: number
+          description: In the order line's unit
+          minimum: 0
+        unitCost:
+          type: number
+          description: Confirmed cost; empty = the ordered cost
+          minimum: 0
+        batchNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        expiryDate:
+          type: string
+          format: date
+          description: Required for products that track expiry
+      required:
+      - purchaseOrderItemId
+      - qty
+    GoodsReceiptRequest:
+      type: object
+      properties:
+        warehouseId:
+          type: integer
+          format: int64
+          description: Defaults to the order's receiving warehouse
+        supplierInvoiceNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoodsReceiptLineRequest"
+          minItems: 1
+      required:
+      - lines
+    GoodsReceiptResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        purchaseOrderId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - POSTED
+          - VOID
+        billId:
+          type: integer
+          format: int64
+        billNumber:
+          type: string
+        total:
+          type: number
+        warnings:
+          type: array
+          description: "Three-way match: quantity or price differs from the order"
+          items:
+            type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrnLineResponse"
+    GrnLineResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        purchaseOrderItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        unitId:
+          type: integer
+          format: int64
+        qty:
+          type: number
+        baseQty:
+          type: number
+        unitCost:
+          type: number
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+    QuickLineRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+        qty:
+          type: number
+          minimum: 0
+        unitCost:
+          type: number
+          minimum: 0
+        batchNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        expiryDate:
+          type: string
+          format: date
+      required:
+      - productId
+      - qty
+      - unitCost
+    QuickPurchaseRequest:
+      type: object
+      properties:
+        supplierId:
+          type: integer
+          format: int64
+          description: Can be the "Market" supplier
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        supplierInvoiceNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuickLineRequest"
+          minItems: 1
+        payment:
+          $ref: "#/components/schemas/PaymentLine"
+          description: Pay now; empty = the bill stays unpaid
+      required:
+      - lines
+      - supplierId
+    BillResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        goodsReceiptId:
+          type: integer
+          format: int64
+        supplierInvoiceNo:
+          type: string
+        billDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        total:
+          type: number
+        paidAmount:
+          type: number
+        balance:
+          type: number
+        status:
+          type: string
+          enum:
+          - UNPAID
+          - PARTLY_PAID
+          - PAID
+          - VOID
+        overdue:
+          type: boolean
+        note:
+          type: string
+    QuickPurchaseResponse:
+      type: object
+      properties:
+        purchaseOrder:
+          $ref: "#/components/schemas/PurchaseOrderResponse"
+        goodsReceipt:
+          $ref: "#/components/schemas/GoodsReceiptResponse"
+        bill:
+          $ref: "#/components/schemas/BillResponse"
+        payment:
+          $ref: "#/components/schemas/PaymentResponse"
+    ContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 0
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+        email:
+          type: string
+          format: email
+          maxLength: 160
+          minLength: 0
+        message:
+          type: string
+          maxLength: 2000
+          minLength: 0
+        language:
+          type: string
+          pattern: km|en
+      required:
+      - message
+      - name
+    CartItem:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+          description: Empty = base unit
+        qty:
+          type: number
+          minimum: 0
+        discount:
+          type: number
+          description: "Line discount, USD"
+          minimum: 0
+      required:
+      - productId
+      - qty
+    CheckoutRequest:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+          description: Defaults to the selected branch
+        customerId:
+          type: integer
+          format: int64
+          description: Empty = walk-in customer (must pay in full)
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+          minItems: 1
+        discount:
+          type: number
+          description: "Discount on the whole sale, USD"
+          minimum: 0
+        payments:
+          type: array
+          description: "One line per currency or method, e.g. $10 cash + ៛10,000 cash"
+          items:
+            $ref: "#/components/schemas/PaymentLine"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - items
+    CheckoutResponse:
+      type: object
+      properties:
+        documentType:
+          type: string
+          description: SALES_RECEIPT (paid in full) or INVOICE (pay later)
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        deliveryId:
+          type: integer
+          format: int64
+        deliveryNumber:
+          type: string
+        customerId:
+          type: integer
+          format: int64
+        subtotal:
+          type: number
+        discount:
+          type: number
+        vat:
+          type: number
+        total:
+          type: number
+        totalKhr:
+          type: number
+        exchangeRate:
+          type: number
+        tenderedKhr:
+          type: number
+          description: "Everything handed over, in riel"
+        changeKhr:
+          type: number
+          description: "Change, given in riel"
+        balanceDue:
+          type: number
+          description: "Left to pay on the invoice, USD"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLineResponse"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentResponse"
+        warnings:
+          type: array
+          items:
+            type: string
+    ReceivePaymentRequest:
+      type: object
+      properties:
+        customerId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        payment:
+          $ref: "#/components/schemas/PaymentLine"
+        allocations:
+          type: array
+          description: Invoices to pay (USD). Empty = oldest due first; the rest is
+            a deposit
+          items:
+            $ref: "#/components/schemas/AllocationRequest"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - customerId
+      - payment
+    LinkResponse:
+      type: object
+      properties:
+        link:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    InviteRequest:
+      type: object
+      properties:
+        roleId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+          description: The branch the person will work in; empty = all branches
+        email:
+          type: string
+          format: email
+          description: Send by email. Empty = copy the link or show it as a QR code
+      required:
+      - roleId
+    InvitationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        roleId:
+          type: integer
+          format: int64
+        roleNameEn:
+          type: string
+        roleNameKm:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        branchName:
+          type: string
+        email:
+          type: string
+        method:
+          type: string
+          enum:
+          - LINK
+          - EMAIL
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - DECLINED
+          - EXPIRED
+          - CANCELLED
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        link:
+          type: string
+          description: Only right after create or resend
+    MyBusinessResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        businessType:
+          type: string
+        status:
+          type: string
+          enum:
+          - SETTING_UP
+          - ACTIVE
+          - SUSPENDED
+          - ARCHIVED
+        onboardingCompleted:
+          type: boolean
+        roleCode:
+          type: string
+        roleNameEn:
+          type: string
+        roleNameKm:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        subscriptionStatus:
+          type: string
+          enum:
+          - TRIALING
+          - ACTIVE
+          - PAST_DUE
+          - EXPIRED
+          - CANCELLED
+        trialEndsAt:
+          type: string
+          format: date-time
+    CreateBusinessRequest:
+      type: object
+      properties:
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+        businessType:
+          type: string
+          example: MINI_MART
+          minLength: 1
+          pattern: MINI_MART|GROCERY|PHARMACY|COSMETICS|HARDWARE|PHONE_SHOP|WHOLESALE|OTHER
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        language:
+          type: string
+          pattern: km|en
+      required:
+      - businessType
+      - nameEn
+    RateRequest:
+      type: object
+      properties:
+        rateDate:
+          type: string
+          format: date
+        usdToKhr:
+          type: number
+          maximum: 10000
+          minimum: 1000
+      required:
+      - usdToKhr
+    RateResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        rateDate:
+          type: string
+          format: date
+        usdToKhr:
+          type: number
+    CloseShiftRequest:
+      type: object
+      properties:
+        countedUsd:
+          type: number
+          minimum: 0
+        countedKhr:
+          type: number
+          minimum: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - countedKhr
+      - countedUsd
+    CashShiftResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+        cashierId:
+          type: integer
+          format: int64
+        cashierName:
+          type: string
+        status:
+          type: string
+          enum:
+          - OPEN
+          - CLOSED
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+        openingUsd:
+          type: number
+        openingKhr:
+          type: number
+        cashReceivedUsd:
+          type: number
+        cashReceivedKhr:
+          type: number
+        changeGivenUsd:
+          type: number
+        changeGivenKhr:
+          type: number
+        cashAddedUsd:
+          type: number
+        cashAddedKhr:
+          type: number
+        cashTakenUsd:
+          type: number
+        cashTakenKhr:
+          type: number
+        expectedUsd:
+          type: number
+        expectedKhr:
+          type: number
+        countedUsd:
+          type: number
+        countedKhr:
+          type: number
+        differenceUsd:
+          type: number
+          description: "counted − expected: + over, − short"
+        differenceKhr:
+          type: number
+        receipts:
+          type: integer
+          format: int64
+        voidedReceipts:
+          type: integer
+          format: int64
+    CashMovementRequest:
+      type: object
+      properties:
+        direction:
+          type: string
+          enum:
+          - IN
+          - OUT
+        currency:
+          type: string
+          enum:
+          - USD
+          - KHR
+        amount:
+          type: number
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - amount
+      - currency
+      - direction
+      - reason
+    OpenShiftRequest:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+          description: Defaults to the selected branch
+        openingUsd:
+          type: number
+          minimum: 0
+        openingKhr:
+          type: number
+          minimum: 0
+    TokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: The token from the link
+          minLength: 1
+      required:
+      - token
+    SignUpRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          maxLength: 120
+          minLength: 0
+        email:
+          type: string
+          format: email
+          maxLength: 160
+          minLength: 0
+        password:
+          type: string
+          maxLength: 72
+          minLength: 8
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        locale:
+          type: string
+          example: km
+          pattern: km|en
+        acceptTerms:
+          type: boolean
+      required:
+      - email
+      - fullName
+      - password
+    SignUpWithInvitationRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        fullName:
+          type: string
+          maxLength: 120
+          minLength: 0
+        username:
+          type: string
+          maxLength: 60
+          minLength: 3
+          pattern: "^[A-Za-z0-9._-]+$"
+        password:
+          type: string
+          maxLength: 72
+          minLength: 8
+        confirmPassword:
+          type: string
+        phone:
+          type: string
+          pattern: "^(0|\\+855\\s?)\\d{2}\\s?\\d{3}\\s?\\d{3,4}$"
+        email:
+          type: string
+          format: email
+          description: Optional. For email invitations the invited email is used
+      required:
+      - fullName
+      - password
+      - token
+      - username
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        businessId:
+          type: integer
+          format: int64
+          description: "Only after joining through an invitation: the business to\
+            \ open"
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          maxLength: 72
+          minLength: 8
+      required:
+      - newPassword
+      - token
+    EmailRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          description: Email or username
+          example: owner@demo.com
+          minLength: 1
+        password:
+          type: string
+          example: Demo@1234
+          minLength: 1
+      required:
+      - login
+      - password
+    AdjustmentLineRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        unitId:
+          type: integer
+          format: int64
+          description: Unit of qtyChange; empty = base unit
+        qtyChange:
+          type: number
+          description: "+ adds stock, − removes it"
+          example: -2
+        unitCost:
+          type: number
+          description: "Opening stock only: cost of one unitId"
+          minimum: 0
+        batchId:
+          type: integer
+          format: int64
+          description: Remove from this batch; empty = earliest expiry first
+        batchNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        expiryDate:
+          type: string
+          format: date
+          description: Required when adding stock of a product that tracks expiry
+      required:
+      - productId
+      - qtyChange
+    AdjustmentRequest:
+      type: object
+      properties:
+        warehouseId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - OPENING
+          - ADJUSTMENT
+        reason:
+          type: string
+          description: Required for ADJUSTMENT. LOST_IN_TRANSIT is set only by transfers
+          enum:
+          - OPENING
+          - DAMAGED
+          - EXPIRED
+          - LOST
+          - OWN_USE
+          - FOUND
+          - LOST_IN_TRANSIT
+          - CORRECTION
+          - OTHER
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdjustmentLineRequest"
+          minItems: 1
+      required:
+      - kind
+      - lines
+      - warehouseId
+    AdjustmentLineResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        batchId:
+          type: integer
+          format: int64
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        qtyChange:
+          type: number
+        unitCost:
+          type: number
+        value:
+          type: number
+    AdjustmentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        kind:
+          type: string
+          enum:
+          - OPENING
+          - ADJUSTMENT
+        reason:
+          type: string
+          enum:
+          - OPENING
+          - DAMAGED
+          - EXPIRED
+          - LOST
+          - OWN_USE
+          - FOUND
+          - LOST_IN_TRANSIT
+          - CORRECTION
+          - OTHER
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - WAITING_APPROVAL
+          - POSTED
+          - REJECTED
+          - VOID
+        postedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: integer
+          format: int64
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        totalValue:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdjustmentLineResponse"
+    UpdateMemberRequest:
+      type: object
+      properties:
+        roleId:
+          type: integer
+          format: int64
+        branchId:
+          type: integer
+          format: int64
+          description: Work in this branch
+        allBranches:
+          type: boolean
+          description: true = access to all branches (branchId is ignored)
+        status:
+          type: string
+          description: ACTIVE or DISABLED; use DELETE to remove
+          enum:
+          - ACTIVE
+          - DISABLED
+          - REMOVED
+    MemberResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        roleId:
+          type: integer
+          format: int64
+        roleCode:
+          type: string
+        roleNameEn:
+          type: string
+        roleNameKm:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+          description: null = all branches
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DISABLED
+          - REMOVED
+        joinedAt:
+          type: string
+          format: date-time
+        canResetPassword:
+          type: boolean
+          description: The Owner can create a reset link (joined without a verified
+            email)
+    BillUpdateRequest:
+      type: object
+      properties:
+        supplierInvoiceNo:
+          type: string
+          maxLength: 40
+          minLength: 0
+        dueDate:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+    PageResponseTransferResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransferResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseSupplierResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponsePaymentResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    StockSummary:
+      type: object
+      properties:
+        onHandValue:
+          type: number
+        inTransitValue:
+          type: number
+          description: "Σ qty sent × unit cost of transfers in transit, shown as its\
+            \ own line"
+        lowStockItems:
+          type: integer
+          format: int64
+        expiringIn30Days:
+          type: integer
+          format: int64
+        expiredBatches:
+          type: integer
+          format: int64
+    MovementRow:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        batchId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum:
+          - OPENING
+          - GOODS_RECEIPT
+          - PURCHASE_RETURN
+          - DELIVERY
+          - SALES_RECEIPT
+          - SALES_RETURN
+          - TRANSFER_OUT
+          - TRANSFER_IN
+          - TRANSFER_RETURN
+          - ADJUSTMENT
+          - COUNT_ADJUST
+        qty:
+          type: number
+        balanceAfter:
+          type: number
+        referenceType:
+          type: string
+        referenceId:
+          type: integer
+          format: int64
+    PageResponseMovementRow:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/MovementRow"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    StockRow:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        sku:
+          type: string
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        unitSymbol:
+          type: string
+        qtyOnHand:
+          type: number
+        reorderLevel:
+          type: number
+        value:
+          type: number
+          description: qty × average cost; only for members who manage products
+        low:
+          type: boolean
+    PageResponseStockRow:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockRow"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    BatchRow:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        qtyOnHand:
+          type: number
+        expired:
+          type: boolean
+    ProductStock:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        qtyOnHand:
+          type: number
+        warehouses:
+          type: array
+          items:
+            $ref: "#/components/schemas/WarehouseStock"
+    WarehouseStock:
+      type: object
+      properties:
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        qtyOnHand:
+          type: number
+        batches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchRow"
+    PageResponseSalesReceiptResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/SalesReceiptResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    RoleResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        builtIn:
+          type: boolean
+        permissions:
+          type: array
+          items:
+            type: string
+    PageResponsePurchaseOrderResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseOrderResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PlanResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        priceMonthly:
+          type: number
+        priceYearly:
+          type: number
+        limits:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+    InvitationDetails:
+      type: object
+      properties:
+        businessName:
+          type: string
+        businessNameKm:
+          type: string
+        roleNameEn:
+          type: string
+        roleNameKm:
+          type: string
+        branchName:
+          type: string
+        email:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - DECLINED
+          - EXPIRED
+          - CANCELLED
+    PageResponseProductResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    BarcodeLookupResponse:
+      type: object
+      properties:
+        product:
+          $ref: "#/components/schemas/ProductResponse"
+        unitId:
+          type: integer
+          format: int64
+        factor:
+          type: number
+        price:
+          type: number
+          description: Price of one scanned unit in this branch
+        qtyOnHand:
+          type: number
+          description: Base units in the branch's sales warehouse
+    MyInvitation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        businessId:
+          type: integer
+          format: int64
+        businessName:
+          type: string
+        roleNameEn:
+          type: string
+        roleNameKm:
+          type: string
+        branchName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    InvoiceResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        type:
+          type: string
+          enum:
+          - STANDARD
+          - TAX
+          - DEBIT_NOTE
+        branchId:
+          type: integer
+          format: int64
+        deliveryId:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        invoiceDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        exchangeRate:
+          type: number
+        subtotal:
+          type: number
+        discount:
+          type: number
+        vat:
+          type: number
+        total:
+          type: number
+        totalKhr:
+          type: number
+        paidAmount:
+          type: number
+        balance:
+          type: number
+        status:
+          type: string
+          enum:
+          - UNPAID
+          - PARTLY_PAID
+          - PAID
+          - VOID
+        overdue:
+          type: boolean
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLineResponse"
+    PageResponseInvoiceResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseGoodsReceiptResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoodsReceiptResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseRateResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/RateResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    Rate:
+      type: object
+      properties:
+        usdToKhr:
+          type: number
+        rateDate:
+          type: string
+          format: date
+        stale:
+          type: boolean
+    DeliveryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        deliveredAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - POSTED
+          - VOID
+        invoiceId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLineResponse"
+    PageResponseDeliveryResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseCustomerResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseCashShiftResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CashShiftResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseBillResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    BillingResponse:
+      type: object
+      properties:
+        planCode:
+          type: string
+        planName:
+          type: string
+        effectivePlanCode:
+          type: string
+        status:
+          type: string
+          enum:
+          - TRIALING
+          - ACTIVE
+          - PAST_DUE
+          - EXPIRED
+          - CANCELLED
+        billingCycle:
+          type: string
+          enum:
+          - MONTHLY
+          - YEARLY
+        trialEndsAt:
+          type: string
+          format: date-time
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+        usage:
+          type: array
+          items:
+            $ref: "#/components/schemas/Usage"
+    Usage:
+      type: object
+      properties:
+        key:
+          type: string
+        limit:
+          type: integer
+          format: int32
+        used:
+          type: integer
+          format: int64
+    PageResponseAdjustmentResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdjustmentResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+  securitySchemes:
+    bearer:
+      type: http
+      description: Access token from POST /auth/login (valid 15 minutes)
+      scheme: bearer
+      bearerFormat: JWT
+    business:
+      type: apiKey
+      description: "ID of the open business, from GET /me/businesses"
+      name: X-Business-Id
+      in: header
+    branch:
+      type: apiKey
+      description: "Branch selected in the top bar: a branch ID, or `all`. Optional"
+      name: X-Branch-Id
+      in: header

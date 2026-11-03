@@ -15,6 +15,7 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 
 /**
@@ -87,6 +88,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info().title("ModernStock API").version("v1").description(DESCRIPTION)
                         .contact(new Contact().name("ModernStock thesis team")))
+                .servers(List.of(new Server().url("/api/v1").description("This server")))
                 .components(components)
                 .tags(TAGS.stream().map(t -> new Tag().name(t[0]).description(t[1])).toList());
     }

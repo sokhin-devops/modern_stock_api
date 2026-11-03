@@ -87,7 +87,7 @@ public class PartnerController {
     @GetMapping("/suppliers")
     @PreAuthorize("hasAuthority('supplier:view')")
     @Transactional(readOnly = true)
-    public PageResponse<SupplierResponse> suppliers(@RequestParam(required = false) String q,
+    public PageResponse<SupplierResponse> searchSuppliers(@RequestParam(required = false) String q,
                                                     @ParameterObject @PageableDefault(sort = "name") Pageable pageable) {
         Page<Supplier> page = suppliers.search(like(q), pageable);
         Map<Long, BigDecimal> owed = balances.suppliers(page.getContent().stream().map(Supplier::getId).toList());
@@ -98,7 +98,7 @@ public class PartnerController {
     @GetMapping("/suppliers/{id}")
     @PreAuthorize("hasAuthority('supplier:view')")
     @Transactional(readOnly = true)
-    public SupplierResponse supplier(@PathVariable Long id) {
+    public SupplierResponse getSupplier(@PathVariable Long id) {
         Supplier s = suppliers.get(id);
         return toResponse(s, balances.suppliers(java.util.List.of(id)).getOrDefault(id, BigDecimal.ZERO));
     }
@@ -120,7 +120,7 @@ public class PartnerController {
     public SupplierResponse updateSupplier(@PathVariable Long id, @Valid @RequestBody SupplierRequest req) {
         apply(suppliers.get(id), req);
         suppliers.flush();
-        return supplier(id);
+        return getSupplier(id);
     }
 
     @Tag(name = "Suppliers")
@@ -140,7 +140,7 @@ public class PartnerController {
     @GetMapping("/customers")
     @PreAuthorize("hasAnyAuthority('customer:view', 'customer:create_pos')")
     @Transactional(readOnly = true)
-    public PageResponse<CustomerResponse> customers(@RequestParam(required = false) String q,
+    public PageResponse<CustomerResponse> searchCustomers(@RequestParam(required = false) String q,
                                                     @ParameterObject @PageableDefault(sort = "name") Pageable pageable) {
         Page<Customer> page = customers.search(like(q), pageable);
         Map<Long, BigDecimal> owed = balances.customers(page.getContent().stream().map(Customer::getId).toList());
@@ -151,7 +151,7 @@ public class PartnerController {
     @GetMapping("/customers/{id}")
     @PreAuthorize("hasAnyAuthority('customer:view', 'customer:create_pos')")
     @Transactional(readOnly = true)
-    public CustomerResponse customer(@PathVariable Long id) {
+    public CustomerResponse getCustomer(@PathVariable Long id) {
         return toResponse(customers.get(id), balances.customer(id));
     }
 
@@ -180,7 +180,7 @@ public class PartnerController {
     public CustomerResponse updateCustomer(@PathVariable Long id, @Valid @RequestBody CustomerRequest req) {
         apply(customers.get(id), req);
         customers.flush();
-        return customer(id);
+        return getCustomer(id);
     }
 
     @Tag(name = "Customers")

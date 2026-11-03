@@ -3,6 +3,7 @@ package com.modernstock.inventory;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.Query;
@@ -19,17 +20,16 @@ public interface StockBatchRepository extends TenantRepository<StockBatch> {
             """)
     List<StockBatch> findForPick(Long productId, Long warehouseId);
 
-    @Query("""
-            select b from StockBatch b
-            where b.productId = :productId and b.warehouseId = :warehouseId
-              and ((:batchNo is null and b.batchNo is null) or b.batchNo = :batchNo)
-              and ((:expiryDate is null and b.expiryDate is null) or b.expiryDate = :expiryDate)
-            order by b.id
-            """)
-    List<StockBatch> findSame(Long productId, Long warehouseId, String batchNo, LocalDate expiryDate);
+    List<StockBatch> findByProductIdAndWarehouseIdOrderByIdAsc(Long productId, Long warehouseId);
 
+    /**
+     * The batch with the same number and expiry, compared in Java: PostgreSQL can't type a null date
+     * parameter in "? is null", and a product has only a few batches per warehouse.
+     */
     default Optional<StockBatch> findFirstSame(Long productId, Long warehouseId, String batchNo, LocalDate expiryDate) {
-        return findSame(productId, warehouseId, batchNo, expiryDate).stream().findFirst();
+        return findByProductIdAndWarehouseIdOrderByIdAsc(productId, warehouseId).stream()
+                .filter(b -> Objects.equals(b.getBatchNo(), batchNo) && Objects.equals(b.getExpiryDate(), expiryDate))
+                .findFirst();
     }
 
     @Query("""

@@ -30,7 +30,7 @@ import com.modernstock.purchase.PurchaseService.PurchaseOrderRequest;
 import com.modernstock.purchase.PurchaseService.PurchaseOrderResponse;
 import com.modernstock.purchase.PurchaseService.QuickPurchaseRequest;
 import com.modernstock.purchase.PurchaseService.QuickPurchaseResponse;
-import com.modernstock.purchase.PurchaseService.ReceiveRequest;
+import com.modernstock.purchase.PurchaseService.GoodsReceiptRequest;
 import com.modernstock.purchase.PurchaseService.SupplierPaymentRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,7 +50,7 @@ public class PurchaseController {
 
     @GetMapping("/purchase-orders")
     @PreAuthorize("hasAuthority('purchase_order:view')")
-    public PageResponse<PurchaseOrderResponse> list(@RequestParam(required = false) PurchaseOrder.Status status,
+    public PageResponse<PurchaseOrderResponse> listPurchaseOrders(@RequestParam(required = false) PurchaseOrder.Status status,
                                                     @RequestParam(required = false) Long supplierId,
                                                     @ParameterObject Pageable pageable) {
         return purchases.list(status, supplierId, pageable);
@@ -58,7 +58,7 @@ public class PurchaseController {
 
     @GetMapping("/purchase-orders/{id}")
     @PreAuthorize("hasAuthority('purchase_order:view')")
-    public PurchaseOrderResponse get(@PathVariable Long id) {
+    public PurchaseOrderResponse getPurchaseOrder(@PathVariable Long id) {
         return purchases.get(id);
     }
 
@@ -66,41 +66,41 @@ public class PurchaseController {
     @PostMapping("/purchase-orders")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public PurchaseOrderResponse create(@Valid @RequestBody PurchaseOrderRequest req) {
+    public PurchaseOrderResponse createPurchaseOrder(@Valid @RequestBody PurchaseOrderRequest req) {
         return purchases.create(req);
     }
 
     @PutMapping("/purchase-orders/{id}")
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public PurchaseOrderResponse update(@PathVariable Long id, @Valid @RequestBody PurchaseOrderRequest req) {
+    public PurchaseOrderResponse updatePurchaseOrder(@PathVariable Long id, @Valid @RequestBody PurchaseOrderRequest req) {
         return purchases.update(id, req);
     }
 
     @DeleteMapping("/purchase-orders/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public void delete(@PathVariable Long id) {
+    public void deletePurchaseOrder(@PathVariable Long id) {
         purchases.deleteDraft(id);
     }
 
     @Operation(summary = "Mark as ordered (sent to the supplier)")
     @PostMapping("/purchase-orders/{id}/order")
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public PurchaseOrderResponse order(@PathVariable Long id) {
+    public PurchaseOrderResponse markOrdered(@PathVariable Long id) {
         return purchases.order(id);
     }
 
     @Operation(summary = "Cancel a draft or ordered purchase order")
     @PostMapping("/purchase-orders/{id}/cancel")
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public PurchaseOrderResponse cancel(@PathVariable Long id) {
+    public PurchaseOrderResponse cancelPurchaseOrder(@PathVariable Long id) {
         return purchases.cancel(id);
     }
 
     @Operation(summary = "Close a partly received order", description = "Stop waiting for the rest.")
     @PostMapping("/purchase-orders/{id}/close")
     @PreAuthorize("hasAuthority('purchase_order:manage')")
-    public PurchaseOrderResponse close(@PathVariable Long id) {
+    public PurchaseOrderResponse closePurchaseOrder(@PathVariable Long id) {
         return purchases.close(id);
     }
 
@@ -110,7 +110,7 @@ public class PurchaseController {
     @PostMapping("/purchase-orders/{id}/receive")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('goods_receipt:create')")
-    public GoodsReceiptResponse receive(@PathVariable Long id, @Valid @RequestBody ReceiveRequest req) {
+    public GoodsReceiptResponse receiveGoods(@PathVariable Long id, @Valid @RequestBody GoodsReceiptRequest req) {
         return purchases.receive(id, req);
     }
 
@@ -119,27 +119,27 @@ public class PurchaseController {
     @PostMapping("/purchase-orders/quick")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('purchase_order:manage') and hasAuthority('goods_receipt:create')")
-    public QuickPurchaseResponse quick(@Valid @RequestBody QuickPurchaseRequest req) {
+    public QuickPurchaseResponse quickPurchase(@Valid @RequestBody QuickPurchaseRequest req) {
         return purchases.quick(req);
     }
 
     @GetMapping("/goods-receipts")
     @PreAuthorize("hasAnyAuthority('purchase_order:view', 'goods_receipt:create')")
-    public PageResponse<GoodsReceiptResponse> receipts(@RequestParam(required = false) Long purchaseOrderId,
+    public PageResponse<GoodsReceiptResponse> listGoodsReceipts(@RequestParam(required = false) Long purchaseOrderId,
                                                        @ParameterObject Pageable pageable) {
         return purchases.receipts(purchaseOrderId, pageable);
     }
 
     @GetMapping("/goods-receipts/{id}")
     @PreAuthorize("hasAnyAuthority('purchase_order:view', 'goods_receipt:create')")
-    public GoodsReceiptResponse receipt(@PathVariable Long id) {
+    public GoodsReceiptResponse getGoodsReceipt(@PathVariable Long id) {
         return purchases.receipt(id);
     }
 
     @Operation(summary = "Bills", description = "Sorted by due date. overdue is calculated from the due date.")
     @GetMapping("/bills")
     @PreAuthorize("hasAuthority('bill:manage')")
-    public PageResponse<BillResponse> bills(@RequestParam(required = false) Long supplierId,
+    public PageResponse<BillResponse> listBills(@RequestParam(required = false) Long supplierId,
                                             @RequestParam(required = false) Bill.Status status,
                                             @ParameterObject Pageable pageable) {
         return purchases.bills(supplierId, status, pageable);
@@ -147,7 +147,7 @@ public class PurchaseController {
 
     @GetMapping("/bills/{id}")
     @PreAuthorize("hasAuthority('bill:manage')")
-    public BillResponse bill(@PathVariable Long id) {
+    public BillResponse getBill(@PathVariable Long id) {
         return purchases.bill(id);
     }
 
@@ -162,14 +162,14 @@ public class PurchaseController {
     @PostMapping("/supplier-payments")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('bill:manage')")
-    public PaymentResponse pay(@Valid @RequestBody SupplierPaymentRequest req) {
+    public PaymentResponse paySupplier(@Valid @RequestBody SupplierPaymentRequest req) {
         return purchases.paySupplier(req);
     }
 
     @GetMapping("/supplier-payments")
     @PreAuthorize("hasAuthority('bill:manage')")
     @Transactional(readOnly = true)
-    public PageResponse<PaymentResponse> supplierPayments(@RequestParam(required = false) Long supplierId,
+    public PageResponse<PaymentResponse> listSupplierPayments(@RequestParam(required = false) Long supplierId,
                                                           @ParameterObject Pageable pageable) {
         return PageResponse.of(payments.search(Payment.Direction.OUT, scope.branchIds(), supplierId, pageable),
                 p -> PaymentResponse.from(p, allocations.findByFromTypeAndFromId(Allocation.FromType.PAYMENT, p.getId())));

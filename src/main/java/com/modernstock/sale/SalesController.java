@@ -61,7 +61,7 @@ public class SalesController {
     @Operation(summary = "Sales receipts", description = "Cashiers see only their own sales.")
     @GetMapping("/sales-receipts")
     @PreAuthorize("hasAuthority('sale:create')")
-    public PageResponse<SalesReceiptResponse> receipts(@RequestParam(required = false) SalesReceipt.Status status,
+    public PageResponse<SalesReceiptResponse> listSalesReceipts(@RequestParam(required = false) SalesReceipt.Status status,
                                                        @ParameterObject Pageable pageable) {
         return pos.receipts(status, pageable);
     }
@@ -69,7 +69,7 @@ public class SalesController {
     @Tag(name = "POS")
     @GetMapping("/sales-receipts/{id}")
     @PreAuthorize("hasAuthority('sale:create')")
-    public SalesReceiptResponse receipt(@PathVariable Long id) {
+    public SalesReceiptResponse getSalesReceipt(@PathVariable Long id) {
         return pos.receipt(id);
     }
 
@@ -77,14 +77,14 @@ public class SalesController {
     @Operation(summary = "Void a sale", description = "Owner or Manager. Stock goes back into the same batches and the payments are voided.")
     @PostMapping("/sales-receipts/{id}/void")
     @PreAuthorize("hasAuthority('sale:void')")
-    public SalesReceiptResponse voidReceipt(@PathVariable Long id, @Valid @RequestBody VoidRequest req) {
+    public SalesReceiptResponse voidSalesReceipt(@PathVariable Long id, @Valid @RequestBody VoidRequest req) {
         return pos.voidReceipt(id, req);
     }
 
     @Tag(name = "POS")
     @GetMapping("/invoices")
     @PreAuthorize("hasAnyAuthority('sale:create', 'customer:view')")
-    public PageResponse<InvoiceResponse> invoices(@RequestParam(required = false) Long customerId,
+    public PageResponse<InvoiceResponse> listInvoices(@RequestParam(required = false) Long customerId,
                                                   @RequestParam(required = false) Invoice.Status status,
                                                   @ParameterObject Pageable pageable) {
         return pos.invoices(customerId, status, pageable);
@@ -93,14 +93,14 @@ public class SalesController {
     @Tag(name = "POS")
     @GetMapping("/invoices/{id}")
     @PreAuthorize("hasAnyAuthority('sale:create', 'customer:view')")
-    public InvoiceResponse invoice(@PathVariable Long id) {
+    public InvoiceResponse getInvoice(@PathVariable Long id) {
         return pos.invoice(id);
     }
 
     @Tag(name = "POS")
     @GetMapping("/deliveries")
     @PreAuthorize("hasAnyAuthority('delivery:manage', 'sale:create')")
-    public PageResponse<DeliveryResponse> deliveries(@RequestParam(required = false) Long customerId,
+    public PageResponse<DeliveryResponse> listDeliveries(@RequestParam(required = false) Long customerId,
                                                      @ParameterObject Pageable pageable) {
         return pos.deliveries(customerId, pageable);
     }
@@ -108,7 +108,7 @@ public class SalesController {
     @Tag(name = "POS")
     @GetMapping("/deliveries/{id}")
     @PreAuthorize("hasAnyAuthority('delivery:manage', 'sale:create')")
-    public DeliveryResponse delivery(@PathVariable Long id) {
+    public DeliveryResponse getDelivery(@PathVariable Long id) {
         return pos.delivery(id);
     }
 
@@ -136,7 +136,7 @@ public class SalesController {
     @PostMapping("/cash-shifts/open")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public CashShiftResponse open(@Valid @RequestBody OpenShiftRequest req) {
+    public CashShiftResponse openCashShift(@Valid @RequestBody OpenShiftRequest req) {
         return cashShifts.open(req);
     }
 
@@ -144,7 +144,7 @@ public class SalesController {
     @Operation(summary = "My open shift in a branch", description = "404 when no shift is open.")
     @GetMapping("/cash-shifts/current")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public CashShiftResponse current(@Parameter(description = "Defaults to the selected branch")
+    public CashShiftResponse currentCashShift(@Parameter(description = "Defaults to the selected branch")
                                      @RequestParam(required = false) Long branchId) {
         return cashShifts.current(branchId);
     }
@@ -153,14 +153,14 @@ public class SalesController {
     @Operation(summary = "Shifts", description = "Cashiers see their own; cash_shift:all sees all, with differences.")
     @GetMapping("/cash-shifts")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public PageResponse<CashShiftResponse> shifts(@ParameterObject Pageable pageable) {
+    public PageResponse<CashShiftResponse> listCashShifts(@ParameterObject Pageable pageable) {
         return cashShifts.list(pageable);
     }
 
     @Tag(name = "Cash shifts")
     @GetMapping("/cash-shifts/{id}")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public CashShiftResponse shift(@PathVariable Long id) {
+    public CashShiftResponse getCashShift(@PathVariable Long id) {
         return cashShifts.get(id);
     }
 
@@ -168,7 +168,7 @@ public class SalesController {
     @Operation(summary = "Add or take cash out of the drawer")
     @PostMapping("/cash-shifts/{id}/cash-movements")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public CashShiftResponse cashMovement(@PathVariable Long id, @Valid @RequestBody CashMovementRequest req) {
+    public CashShiftResponse addCashMovement(@PathVariable Long id, @Valid @RequestBody CashMovementRequest req) {
         return cashShifts.addMovement(id, req);
     }
 
@@ -177,7 +177,7 @@ public class SalesController {
             description = "Count dollars and riel; the answer shows expected, counted and the difference (+ over, − short) per currency.")
     @PostMapping("/cash-shifts/{id}/close")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public CashShiftResponse close(@PathVariable Long id, @Valid @RequestBody CloseShiftRequest req) {
+    public CashShiftResponse closeCashShift(@PathVariable Long id, @Valid @RequestBody CloseShiftRequest req) {
         return cashShifts.close(id, req);
     }
 }

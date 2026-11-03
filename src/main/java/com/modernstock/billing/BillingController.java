@@ -39,7 +39,7 @@ public class BillingController {
     @GetMapping
     @PreAuthorize("hasAuthority('billing:manage')")
     @Transactional(readOnly = true)
-    public BillingResponse billing() {
+    public BillingResponse getBilling() {
         Long businessId = BusinessContext.require().businessId();
         Subscription s = subscriptions.findByBusinessId(businessId).orElseThrow();
         Plan plan = plans.findById(s.getPlanId()).orElseThrow();

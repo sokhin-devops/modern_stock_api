@@ -86,17 +86,17 @@ public class PurchaseService {
                                         List<PoLineResponse> lines) {
     }
 
-    public record ReceiveLineRequest(@NotNull Long purchaseOrderItemId,
+    public record GoodsReceiptLineRequest(@NotNull Long purchaseOrderItemId,
                                      @Schema(description = "In the order line's unit") @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal qty,
                                      @Schema(description = "Confirmed cost; empty = the ordered cost") @DecimalMin("0") BigDecimal unitCost,
                                      @Size(max = 40) String batchNo,
                                      @Schema(description = "Required for products that track expiry") LocalDate expiryDate) {
     }
 
-    public record ReceiveRequest(@Schema(description = "Defaults to the order's receiving warehouse") Long warehouseId,
+    public record GoodsReceiptRequest(@Schema(description = "Defaults to the order's receiving warehouse") Long warehouseId,
                                  @Size(max = 40) String supplierInvoiceNo,
                                  @Size(max = 500) String note,
-                                 @NotEmpty List<@Valid ReceiveLineRequest> lines) {
+                                 @NotEmpty List<@Valid GoodsReceiptLineRequest> lines) {
     }
 
     public record GrnLineResponse(Long id, Long purchaseOrderItemId, Long productId, String productName, Long unitId,
@@ -225,7 +225,7 @@ public class PurchaseService {
 
     /** Goods receipt (stock up, average cost updated) and its bill, in one transaction. */
     @Transactional
-    public GoodsReceiptResponse receive(Long purchaseOrderId, ReceiveRequest req) {
+    public GoodsReceiptResponse receive(Long purchaseOrderId, GoodsReceiptRequest req) {
         PurchaseOrder po = owned(purchaseOrderId);
         if (!EnumSet.of(PurchaseOrder.Status.DRAFT, PurchaseOrder.Status.ORDERED,
                 PurchaseOrder.Status.PARTIALLY_RECEIVED).contains(po.getStatus())) {
@@ -249,9 +249,9 @@ public class PurchaseService {
 
         List<String> warnings = new ArrayList<>();
         StockService.Ref ref = new StockService.Ref(GRN_REF, grn.getId());
-        List<ReceiveLineRequest> sorted = req.lines().stream()
+        List<GoodsReceiptLineRequest> sorted = req.lines().stream()
                 .sorted(Comparator.comparing(l -> itemOf(po, l.purchaseOrderItemId()).getProductId())).toList();
-        for (ReceiveLineRequest line : sorted) {
+        for (GoodsReceiptLineRequest line : sorted) {
             PurchaseOrderItem poItem = itemOf(po, line.purchaseOrderItemId());
             Product p = products.active(poItem.getProductId());
             if (p.isTrackExpiry() && line.expiryDate() == null) {
@@ -320,13 +320,13 @@ public class PurchaseService {
         apply(po, req.supplierId(), req.branchId(), req.warehouseId(), null, null, null, req.note(), poLines);
         orders.save(po);
 
-        List<ReceiveLineRequest> receiveLines = new ArrayList<>();
+        List<GoodsReceiptLineRequest> receiveLines = new ArrayList<>();
         for (int i = 0; i < req.lines().size(); i++) {
             QuickLineRequest l = req.lines().get(i);
-            receiveLines.add(new ReceiveLineRequest(po.getItems().get(i).getId(), l.qty(), l.unitCost(), l.batchNo(),
+            receiveLines.add(new GoodsReceiptLineRequest(po.getItems().get(i).getId(), l.qty(), l.unitCost(), l.batchNo(),
                     l.expiryDate()));
         }
-        GoodsReceiptResponse grn = receive(po.getId(), new ReceiveRequest(req.warehouseId(), req.supplierInvoiceNo(),
+        GoodsReceiptResponse grn = receive(po.getId(), new GoodsReceiptRequest(req.warehouseId(), req.supplierInvoiceNo(),
                 req.note(), receiveLines));
         Bill bill = bills.get(grn.billId());
         PaymentResponse payment = null;

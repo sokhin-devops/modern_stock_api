@@ -54,14 +54,14 @@ public class PublicController {
     @Operation(summary = "Plans for the Pricing page", description = "The website reads prices from here, so they always match billing.")
     @GetMapping("/plans")
     @Transactional(readOnly = true)
-    public List<PlanResponse> plans() {
+    public List<PlanResponse> publicPlans() {
         return plans.findByPublicPlanTrueOrderBySortOrder().stream().map(PublicController::toResponse).toList();
     }
 
     @Operation(summary = "Send a message from the website contact form")
     @PostMapping("/contact")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void contact(@Valid @RequestBody ContactRequest req) {
+    public void sendContactMessage(@Valid @RequestBody ContactRequest req) {
         ContactMessage m = new ContactMessage();
         m.setName(req.name());
         m.setPhone(req.phone());
@@ -74,7 +74,7 @@ public class PublicController {
     @Operation(summary = "Invitation details for the invitation page",
             description = "Shows the business, role and branch before the person joins. The token is the value from the link.")
     @GetMapping("/invitations/{token}")
-    public InvitationDetails invitation(@PathVariable String token) {
+    public InvitationDetails invitationDetails(@PathVariable String token) {
         return invitations.details(token);
     }
 

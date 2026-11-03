@@ -34,12 +34,12 @@ public class BranchController {
 
     @Operation(summary = "All branches with their warehouses", description = "Main branch first.")
     @GetMapping
-    public List<BranchResponse> list() {
+    public List<BranchResponse> listBranches() {
         return branches.list();
     }
 
     @GetMapping("/{id}")
-    public BranchResponse get(@PathVariable Long id) {
+    public BranchResponse getBranch(@PathVariable Long id) {
         return branches.get(id);
     }
 
@@ -47,13 +47,13 @@ public class BranchController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('business:manage')")
-    public BranchResponse create(@Valid @RequestBody BranchRequest req) {
+    public BranchResponse createBranch(@Valid @RequestBody BranchRequest req) {
         return branches.create(req);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('business:manage')")
-    public BranchResponse update(@PathVariable Long id, @Valid @RequestBody BranchRequest req) {
+    public BranchResponse updateBranch(@PathVariable Long id, @Valid @RequestBody BranchRequest req) {
         return branches.update(id, req);
     }
 
@@ -61,7 +61,7 @@ public class BranchController {
             description = "Branches are never deleted. Not allowed for the main branch, or while transfers to or from it are in transit.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('business:manage')")
-    public BranchResponse deactivate(@PathVariable Long id) {
+    public BranchResponse deactivateBranch(@PathVariable Long id) {
         return branches.deactivate(id);
     }
 

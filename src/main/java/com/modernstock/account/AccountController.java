@@ -84,14 +84,14 @@ public class AccountController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public UserResponse me() {
+    public UserResponse getMe() {
         return UserResponse.from(currentUser());
     }
 
     @Operation(summary = "Edit my profile, language and appearance")
     @PutMapping
     @Transactional
-    public UserResponse update(@Valid @RequestBody UpdateMeRequest req) {
+    public UserResponse updateMe(@Valid @RequestBody UpdateMeRequest req) {
         User u = currentUser();
         u.setFullName(req.fullName().trim());
         u.setPhone(req.phone());
@@ -159,7 +159,7 @@ public class AccountController {
     @Operation(summary = "Accept an invitation (already have an account)", description = "Returns the business to open.")
     @PostMapping("/invitations/{key}/accept")
     @Transactional
-    public MyBusinessResponse accept(
+    public MyBusinessResponse acceptInvitation(
             @Parameter(description = "The token from the link, or the id from GET /me/invitations") @PathVariable String key) {
         Long userId = CurrentUser.id();
         Long businessId = invitations.accept(key, userId);
@@ -170,7 +170,7 @@ public class AccountController {
 
     @PostMapping("/invitations/{key}/decline")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void decline(@PathVariable String key) {
+    public void declineInvitation(@PathVariable String key) {
         invitations.decline(key, CurrentUser.id());
     }
 

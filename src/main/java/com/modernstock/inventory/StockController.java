@@ -83,7 +83,7 @@ public class StockController {
     @GetMapping("/levels")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public PageResponse<StockRow> levels(@RequestParam(required = false) String q,
+    public PageResponse<StockRow> stockLevels(@RequestParam(required = false) String q,
                                          @RequestParam(required = false) Long categoryId,
                                          @ParameterObject @PageableDefault(size = 20, sort = "nameEn") Pageable pageable) {
         Page<Product> page = products.search(like(q), categoryId, true, pageable);
@@ -97,7 +97,7 @@ public class StockController {
     @GetMapping("/low")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public List<StockRow> low() {
+    public List<StockRow> lowStock() {
         List<Product> watched = products.findAll().stream()
                 .filter(p -> p.isActive() && p.getReorderLevel().signum() > 0).toList();
         Map<Long, BigDecimal> onHand = productService.onHand(watched.stream().map(Product::getId).toList(),
@@ -114,7 +114,7 @@ public class StockController {
     @GetMapping("/levels/{productId}")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public ProductStock product(@PathVariable Long productId) {
+    public ProductStock productStock(@PathVariable Long productId) {
         Product p = products.get(productId);
         List<Long> visible = scope.warehouseIds();
         Map<Long, String> labels = branches.warehouseLabels();
@@ -133,7 +133,7 @@ public class StockController {
     @GetMapping("/movements")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public PageResponse<MovementRow> movements(@RequestParam(required = false) Long productId,
+    public PageResponse<MovementRow> stockMovements(@RequestParam(required = false) Long productId,
                                                @RequestParam(required = false) Long warehouseId,
                                                @RequestParam(required = false) LocalDate from,
                                                @RequestParam(required = false) LocalDate to,
@@ -160,7 +160,7 @@ public class StockController {
     @GetMapping("/batches")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public List<BatchRow> expiring(@Parameter(example = "30") @RequestParam(defaultValue = "30") int expiringInDays,
+    public List<BatchRow> expiringBatches(@Parameter(example = "30") @RequestParam(defaultValue = "30") int expiringInDays,
                                    @RequestParam(required = false) Long productId) {
         LocalDate today = Dates.today();
         List<StockBatch> list = batches.findExpiring(today.plusDays(expiringInDays), scope.warehouseIds(), productId);
@@ -173,7 +173,7 @@ public class StockController {
     @GetMapping("/summary")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
-    public StockSummary summary() {
+    public StockSummary stockSummary() {
         List<Long> visible = scope.warehouseIds();
         List<Product> all = products.findAll();
         Map<Long, BigDecimal> onHand = productService.onHand(all.stream().map(Product::getId).toList(), visible);

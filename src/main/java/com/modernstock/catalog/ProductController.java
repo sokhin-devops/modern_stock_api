@@ -42,7 +42,7 @@ public class ProductController {
     @Operation(summary = "Search products", description = "q matches name (EN/KM), SKU or barcode. Sort by nameEn, sku, sellPrice...")
     @GetMapping
     @PreAuthorize("hasAuthority('product:view')")
-    public PageResponse<ProductResponse> search(@RequestParam(required = false) String q,
+    public PageResponse<ProductResponse> searchProducts(@RequestParam(required = false) String q,
                                                 @RequestParam(required = false) Long categoryId,
                                                 @Parameter(description = "Default true; false lists deactivated products")
                                                 @RequestParam(required = false) Boolean active,
@@ -52,7 +52,7 @@ public class ProductController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('product:view')")
-    public ProductResponse get(@PathVariable Long id) {
+    public ProductResponse getProduct(@PathVariable Long id) {
         return products.get(id);
     }
 
@@ -60,7 +60,7 @@ public class ProductController {
             + "Returns the scanned unit, its price in the branch and the stock in the branch's sales warehouse.")
     @GetMapping("/barcode/{code}")
     @PreAuthorize("hasAuthority('product:view')")
-    public BarcodeLookupResponse byBarcode(@PathVariable String code,
+    public BarcodeLookupResponse findByBarcode(@PathVariable String code,
                                            @Parameter(description = "Defaults to the selected branch (X-Branch-Id)")
                                            @RequestParam(required = false) Long branchId) {
         return products.byBarcode(code, branchId);
@@ -70,13 +70,13 @@ public class ProductController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('product:manage')")
-    public ProductResponse create(@Valid @RequestBody ProductRequest req) {
+    public ProductResponse createProduct(@Valid @RequestBody ProductRequest req) {
         return products.create(req);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('product:manage')")
-    public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
+    public ProductResponse updateProduct(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
         return products.update(id, req);
     }
 
@@ -84,7 +84,7 @@ public class ProductController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('product:manage')")
-    public void deactivate(@PathVariable Long id) {
+    public void deactivateProduct(@PathVariable Long id) {
         products.deactivate(id);
     }
 

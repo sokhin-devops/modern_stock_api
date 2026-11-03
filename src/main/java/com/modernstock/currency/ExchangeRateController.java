@@ -46,13 +46,13 @@ public class ExchangeRateController {
 
     @Operation(summary = "Rate used today", description = "If today's rate is missing, the last one is returned with stale = true.")
     @GetMapping("/current")
-    public CurrencyService.Rate current() {
+    public CurrencyService.Rate currentRate() {
         return currency.current();
     }
 
     @Operation(summary = "Rate history, newest first")
     @GetMapping
-    public PageResponse<RateResponse> list(@ParameterObject Pageable pageable) {
+    public PageResponse<RateResponse> listRates(@ParameterObject Pageable pageable) {
         return PageResponse.of(repository.findAllByOrderByRateDateDesc(pageable), RateResponse::from);
     }
 
@@ -60,7 +60,7 @@ public class ExchangeRateController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('exchange_rate:manage')")
-    public RateResponse set(@Valid @RequestBody RateRequest req) {
+    public RateResponse setRate(@Valid @RequestBody RateRequest req) {
         LocalDate date = req.rateDate() != null ? req.rateDate() : Dates.today();
         return RateResponse.from(currency.set(date, req.usdToKhr()));
     }

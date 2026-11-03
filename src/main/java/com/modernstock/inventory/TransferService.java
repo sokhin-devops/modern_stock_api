@@ -62,15 +62,15 @@ public class TransferService {
             @NotEmpty List<@Valid TransferLineRequest> lines) {
     }
 
-    public record ReceiveLineRequest(@NotNull Long itemId,
+    public record TransferReceiveLineRequest(@NotNull Long itemId,
                                      @Schema(description = "Base units that arrived; less than sent = lost in transit")
                                      @NotNull @DecimalMin("0") BigDecimal qtyReceived) {
     }
 
-    public record ReceiveRequest(
+    public record TransferReceiveRequest(
             @Schema(description = "Another warehouse of the destination branch; empty = the one chosen when sending")
             Long toWarehouseId,
-            @Schema(description = "Only lines that differ; missing lines arrived in full") List<@Valid ReceiveLineRequest> lines) {
+            @Schema(description = "Only lines that differ; missing lines arrived in full") List<@Valid TransferReceiveLineRequest> lines) {
     }
 
     public record ReturnRequest(@Schema(example = "Wrong branch") @NotBlank @Size(max = 255) String reason) {
@@ -169,7 +169,7 @@ public class TransferService {
      * "lost in transit" adjustment at the cost on the line.
      */
     @Transactional
-    public TransferResponse receive(Long id, ReceiveRequest req) {
+    public TransferResponse receive(Long id, TransferReceiveRequest req) {
         StockTransfer t = locked(id);
         requireStatus(t, StockTransfer.Status.IN_TRANSIT);
         Warehouse destination = warehouses.get(t.getToWarehouseId());

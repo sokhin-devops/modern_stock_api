@@ -35,13 +35,13 @@ public class MemberController {
 
     @Operation(summary = "Roles you can give", description = "The four built-in roles, then this business's custom roles, with their permissions.")
     @GetMapping("/roles")
-    public List<RoleResponse> roles() {
+    public List<RoleResponse> listRoles() {
         return members.roles();
     }
 
     @GetMapping("/members")
     @PreAuthorize("hasAuthority('member:view')")
-    public List<MemberResponse> list() {
+    public List<MemberResponse> listMembers() {
         return members.list();
     }
 
@@ -49,7 +49,7 @@ public class MemberController {
             description = "Takes effect on the member's next request. The last active Owner can't be changed or disabled.")
     @PatchMapping("/members/{id}")
     @PreAuthorize("hasAuthority('member:manage')")
-    public MemberResponse update(@PathVariable Long id, @Valid @RequestBody UpdateMemberRequest req) {
+    public MemberResponse updateMember(@PathVariable Long id, @Valid @RequestBody UpdateMemberRequest req) {
         return members.update(id, req);
     }
 
@@ -57,7 +57,7 @@ public class MemberController {
     @DeleteMapping("/members/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('member:manage')")
-    public void remove(@PathVariable Long id) {
+    public void removeMember(@PathVariable Long id) {
         members.remove(id);
     }
 
@@ -70,7 +70,7 @@ public class MemberController {
 
     @GetMapping("/members/invitations")
     @PreAuthorize("hasAuthority('member:manage')")
-    public List<InvitationResponse> invitations() {
+    public List<InvitationResponse> listInvitations() {
         return invitations.list();
     }
 
@@ -86,14 +86,14 @@ public class MemberController {
     @Operation(summary = "New link for a pending or expired invitation", description = "The old link stops working.")
     @PostMapping("/members/invitations/{id}/resend")
     @PreAuthorize("hasAuthority('member:manage')")
-    public InvitationResponse resend(@PathVariable Long id) {
+    public InvitationResponse resendInvitation(@PathVariable Long id) {
         return invitations.resend(id);
     }
 
     @DeleteMapping("/members/invitations/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('member:manage')")
-    public void cancel(@PathVariable Long id) {
+    public void cancelInvitation(@PathVariable Long id) {
         invitations.cancel(id);
     }
 }
