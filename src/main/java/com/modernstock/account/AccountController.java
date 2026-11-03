@@ -36,11 +36,13 @@ import com.modernstock.common.Messages;
 import com.modernstock.common.Phones;
 import com.modernstock.member.InvitationService;
 import com.modernstock.member.InvitationService.MyInvitation;
+import com.modernstock.member.Permission;
 import com.modernstock.member.Role;
 import com.modernstock.member.RoleRepository;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -69,7 +71,9 @@ public class AccountController {
     public record MyBusinessResponse(Long id, String nameEn, String nameKm, String businessType,
                                      Business.Status status, boolean onboardingCompleted, String roleCode,
                                      String roleNameEn, String roleNameKm, Long branchId,
-                                     Subscription.Status subscriptionStatus, Instant trialEndsAt) {
+                                     Subscription.Status subscriptionStatus, Instant trialEndsAt,
+                                     @Schema(description = "What this member may do; the web app shows only these menus")
+                                     List<String> permissions) {
     }
 
     private final UserRepository users;
@@ -182,6 +186,7 @@ public class AccountController {
         Role r = roles.findById(m.getRoleId()).orElseThrow();
         return new MyBusinessResponse(b.getId(), b.getNameEn(), b.getNameKm(), b.getBusinessType(), b.getStatus(),
                 b.isOnboardingCompleted(), r.getCode(), r.getNameEn(), r.getNameKm(), m.getBranchId(),
-                s == null ? null : s.getStatus(), s == null ? null : s.getTrialEndsAt());
+                s == null ? null : s.getStatus(), s == null ? null : s.getTrialEndsAt(),
+                r.getPermissions().stream().map(Permission::getCode).sorted().toList());
     }
 }
