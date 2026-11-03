@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: modern_stock_api
+  profiles:
+    default: dev
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/modern_stock}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  messages:
+    basename: i18n/messages
+    fallback-to-system-locale: false
+  jackson:
+    time-zone: UTC
+
+server:
+  servlet:
+    context-path: /api/v1
+  error:
+    include-message: never
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: true
+    display-request-duration: true
+    doc-expansion: none
+    filter: true
+  default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+app:
+  jwt:
+    # 32+ characters. Set JWT_SECRET in every real environment.
+    secret: ${JWT_SECRET:dev-only-secret-change-me-modern-stock-api-2026}
+    access-token-minutes: 15
+    refresh-token-days: 14
+  web-app-url: ${WEB_APP_URL:http://localhost:4201}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:4200,http://localhost:4201}
+  # true only in development: responses include the verification/invitation/reset link so you can test without email
+  dev-links: false
+  demo-data: false
+  billing:
+    mode: demo
