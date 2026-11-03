@@ -5180,6 +5180,11 @@ components:
         trialEndsAt:
           type: string
           format: date-time
+        permissions:
+          type: array
+          description: What this member may do; the web app shows only these menus
+          items:
+            type: string
     CreateBusinessRequest:
       type: object
       properties:
