@@ -34,6 +34,7 @@ import com.modernstock.catalog.ProductService.ProductRequest;
 import com.modernstock.catalog.ProductService.ProductResponse;
 import com.modernstock.catalog.ProductService.ProductUnitRequest;
 import com.modernstock.catalog.UnitRepository;
+import com.modernstock.common.Dates;
 import com.modernstock.inventory.AdjustmentService;
 import com.modernstock.inventory.AdjustmentService.AdjustmentLineRequest;
 import com.modernstock.inventory.AdjustmentService.AdjustmentRequest;
@@ -77,6 +78,11 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (users.findByEmailIgnoreCase(OWNER_EMAIL).isPresent()) {
+            // the cashier is created last: if it is missing, an earlier start stopped half-way
+            if (!users.existsByUsernameIgnoreCase("dara")) {
+                log.warn("Demo data is incomplete (an earlier start failed while seeding). "
+                        + "Stop the API, delete the .data folder (or the database) and start again.");
+            }
             return;
         }
         User owner = user("Sokha Chan", OWNER_EMAIL, null, null);
@@ -125,7 +131,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 new AdjustmentLineRequest(noodles.id(), null, new BigDecimal("60"), new BigDecimal("0.22"), null, null, null),
                 new AdjustmentLineRequest(rice.id(), null, new BigDecimal("8"), new BigDecimal("9.80"), null, null, null),
                 new AdjustmentLineRequest(paracetamol.id(), null, new BigDecimal("12"), new BigDecimal("0.55"), null,
-                        "PCM-2611", java.time.LocalDate.now().plusDays(20)))));
+                        "PCM-2611", Dates.today().plusDays(20)))));
         adjustments.create(new AdjustmentRequest(backStore, StockAdjustment.Kind.OPENING, null, "Opening stock", List.of(
                 new AdjustmentLineRequest(water.id(), unit.get("box"), new BigDecimal("10"), new BigDecimal("6.00"), null, null, null))));
 

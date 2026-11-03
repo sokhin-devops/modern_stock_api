@@ -9,6 +9,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.modernstock.common.Dates;
 import com.modernstock.support.ApiTest;
 
 /** PLAIN.md 11.5: earliest expiry first, expired batches can't be sold, they leave through an adjustment. */
@@ -17,7 +18,8 @@ class BatchesAndExpiryTest extends ApiTest {
     @Test
     void earliestExpirySellsFirstAndExpiredStockCantBeSold() {
         Shop shop = newShop();
-        LocalDate today = LocalDate.now();
+        // the business day is Phnom Penh time, whatever the clock of the PC running the tests
+        LocalDate today = Dates.today();
         long medicine = ok(post("/products", Map.of("nameEn", "Paracetamol", "baseUnitId", shop.units().get("pack"),
                 "sellPrice", 1.00, "trackExpiry", true), shop)).id();
 

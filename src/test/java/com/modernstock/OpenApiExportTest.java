@@ -22,12 +22,19 @@ class OpenApiExportTest extends ApiTest {
         assertThat(yaml).contains("title: ModernStock API")
                 .contains("/pos/checkout:")
                 .contains("/transfers/{id}/receive:")
-                .contains("X-Business-Id");
-        Path out = Path.of("docs", "openapi.yaml");
+                .contains("X-Business-Id")
+                .doesNotContainPattern("operationId: \\w+_\\d+");
+        Path out = projectDir().resolve("docs").resolve("openapi.yaml");
         Files.createDirectories(out.getParent());
         Files.writeString(out, yaml, StandardCharsets.UTF_8);
 
         String ui = rest.getForObject("/swagger-ui/index.html", String.class);
         assertThat(ui).contains("Swagger UI");
+    }
+
+    /** Maven runs tests in the project folder; an IDE may run them from the parent workspace folder. */
+    private static Path projectDir() {
+        Path here = Path.of("").toAbsolutePath();
+        return Files.exists(here.resolve("modern_stock_api").resolve("pom.xml")) ? here.resolve("modern_stock_api") : here;
     }
 }
