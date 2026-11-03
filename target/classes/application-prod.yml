@@ -1,0 +1,11 @@
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  dev-links: false
+  demo-data: false
+
+springdoc:
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}

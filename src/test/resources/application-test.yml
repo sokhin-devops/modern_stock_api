@@ -1,0 +1,7 @@
+app:
+  dev-links: true
+  demo-data: false
+
+logging:
+  level:
+    com.modernstock: INFO

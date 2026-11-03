@@ -46,7 +46,8 @@ public class SecurityConfig {
     private static final String[] PUBLIC = {
             "/auth/sign-up", "/auth/verify-email", "/auth/resend-verification", "/auth/login", "/auth/refresh",
             "/auth/logout", "/auth/forgot-password", "/auth/reset-password", "/auth/sign-up-with-invitation",
-            "/public/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
+            "/public/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs.yaml",
+            "/v3/api-docs/**", "/actuator/health"
     };
 
     @Bean
