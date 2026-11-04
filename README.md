@@ -134,12 +134,12 @@ src/main/resources/db/migration/   V1__init.sql (schema), V2__seed_roles.sql, V3
 | Area (PLAIN.md) | Built now | Next |
 |---|---|---|
 | M6 Accounts and businesses | Sign-up and verification, login, rotating refresh cookie, logout (one or all devices), forgot and reset password, my businesses, create business + Pro trial, setup page, invitations (link or email), join with an invitation, members, last-Owner rule, reset links for staff without email | Rate limiting (Bucket4j), custom roles, activity log |
-| M7 Settings | Business profile, settings (VAT, riel rounding, discount limit, negative stock), branches, warehouses (sales and receiving roles), exchange rates | Telegram connect, receipt layout |
-| M1 Products | Products, packaging units with barcodes, barcode lookup, branch prices, categories, units | Excel import |
-| M2 Purchases | Purchase orders, partial receiving with warnings when quantity or price differs from the order, bills created from receipts, supplier payments (oldest bills first or chosen bills), "Save, receive and pay now" | Purchase returns, supplier credits, expenses, statements |
+| M7 Settings | Business profile, settings (VAT, riel rounding, discount limit, negative stock), branches, warehouses (sales and receiving roles), exchange rates, Telegram chat and alert choices with a test message (`/business/telegram`) | Sending the daily summary and alerts on a schedule, receipt layout |
+| M1 Products | Products, packaging units with barcodes, barcode lookup, branch prices, categories, units (the web app imports products from Excel or CSV through `POST /products`) | Import on the server for very large files |
+| M2 Purchases | Purchase orders, partial receiving with warnings when quantity or price differs from the order, bills created from receipts, supplier payments (oldest bills first or chosen bills), "Save, receive and pay now", expenses and expense categories (`/expenses`, `/expense-categories`) | Purchase returns, supplier credits, statements |
 | M3 Sales | POS checkout (sales receipt, or delivery + invoice), credit limit, discount limit, VAT, USD + KHR with change in riel, voiding a sale, payments received, cash shifts with expected and counted cash per currency | Quotations, sales orders, sales returns, credit notes, tax invoices |
-| M4 Inventory | Stock ledger, stock levels, stock card, batches and expiry, low stock, opening stock, adjustments (posted, or waiting for approval), moves, branch transfers with send, receive, lost in transit and return to sender | Stock counts, voiding transfers and adjustments |
-| M5 Reports | Stock summary (value, in transit, low stock, expiring) | Dashboard, Must reports, Excel export, Telegram summary |
+| M4 Inventory | Stock ledger, stock levels, stock card, batches and expiry, low stock, opening stock, adjustments (posted, or waiting for approval), moves, branch transfers with send, receive, lost in transit and return to sender, stock counts (start, count, post the differences; `/stock-counts`) | Voiding transfers and adjustments |
+| M5 Reports | Stock summary (value, in transit, low stock, expiring), sales and profit per day and per product (`/reports/sales`), profit and loss with expenses (`/reports/profit`), customer and supplier debts (`/reports/debts`) | Excel export, Telegram summary |
 | M10 Billing | Plans, trial, limits on branches, members and products, `GET /billing` | Subscribe, change plan, demo payment, renewals job |
 | M8 Super admin | — | `/admin/**` (the security rule is already in place) |
 
@@ -149,7 +149,7 @@ src/main/resources/db/migration/   V1__init.sql (schema), V2__seed_roles.sql, V3
 ./mvnw test                          # PowerShell or cmd: .\mvnw.cmd test
 ```
 
-There are 18 tests, which take about a minute. Most of that is starting PostgreSQL once.
+There are 21 tests, which take about a minute. Most of that is starting PostgreSQL once.
 
 The tests start the real API against a real PostgreSQL (embedded, no Docker needed) and call it over HTTP, the same way the web app does. They can run while the local API is running.
 
@@ -161,6 +161,7 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `TransferTest` | Send and receive with a shortfall (lost-in-transit adjustment), return to sender, move inside a branch, a branch with stock in transit can't be deactivated |
 | `MembersAndPermissionsTest` | Joining by link without email, cashier limits (no product edits, no voids, credit limit), reset links, removal takes effect at once, last Owner |
 | `ConcurrentCheckoutTest` | **Two cashiers sell the last unit at the same moment: one gets 201, the other 422** |
+| `ExpensesCountsReportsTest` | Starter expense categories, an expense in riel lowers the net profit, the sales report, voiding an expense; a stock count posts only the counted differences; Telegram settings are kept and the test message needs a bot |
 | `OpenApiExportTest` | The Swagger document is complete, with unique operation IDs. It writes [docs/openapi.yaml](docs/openapi.yaml) |
 
 ## Troubleshooting
@@ -185,6 +186,7 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `JWT_SECRET` | dev-only value | At least 32 characters. Required with `prod` |
 | `WEB_APP_URL` | `http://localhost:4201` | Used to build verification, invitation and reset links |
 | `CORS_ORIGINS` | `http://localhost:4200,http://localhost:4201` | The website and the web app |
+| `TELEGRAM_BOT_TOKEN` | empty | The Telegram bot (from @BotFather). Empty: businesses can save their chat, but nothing is sent |
 | `SPRING_PROFILES_ACTIVE` | `dev` | `prod` turns off demo data and dev links, and hides Swagger unless `SWAGGER_ENABLED=true` |
 
 ## Notes for the team

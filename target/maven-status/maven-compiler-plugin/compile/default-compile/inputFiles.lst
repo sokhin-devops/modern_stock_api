@@ -71,6 +71,12 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\currency\ExchangeRate.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\currency\ExchangeRateController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\currency\ExchangeRateRepository.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\Expense.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseCategory.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseCategoryRepository.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseRepository.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\AdjustmentService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\InventoryController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockAdjustment.java
@@ -79,6 +85,11 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockBatch.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockBatchRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockCount.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockCountController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockCountItem.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockCountRepository.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockCountService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockLevel.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockLevelRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockMovement.java
@@ -106,6 +117,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\money\PaymentResponse.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\money\PaymentService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\notification\MailService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\notification\TelegramController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\Customer.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\CustomerRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\PartnerController.java
@@ -124,6 +136,12 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\purchase\PurchaseOrderItem.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\purchase\PurchaseOrderRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\purchase\PurchaseService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\DashboardController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\DashboardService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\ReportController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\ReportScope.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\ReportService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\StockReportService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashMovement.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashMovementRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashShift.java

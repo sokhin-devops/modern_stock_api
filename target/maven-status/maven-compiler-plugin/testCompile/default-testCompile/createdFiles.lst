@@ -2,6 +2,7 @@ com\modernstock\LocalRun.class
 com\modernstock\MembersAndPermissionsTest.class
 com\modernstock\support\IntegrationTest.class
 com\modernstock\ConcurrentCheckoutTest.class
+com\modernstock\ExpensesCountsReportsTest.class
 com\modernstock\BatchesAndExpiryTest.class
 com\modernstock\support\ApiTest.class
 com\modernstock\SellingAndBuyingTest.class

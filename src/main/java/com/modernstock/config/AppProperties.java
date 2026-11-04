@@ -11,7 +11,8 @@ public record AppProperties(
         Cors cors,
         boolean devLinks,
         boolean demoData,
-        Billing billing) {
+        Billing billing,
+        Telegram telegram) {
 
     public record Jwt(String secret, int accessTokenMinutes, int refreshTokenDays) {
     }
@@ -20,5 +21,9 @@ public record AppProperties(
     }
 
     public record Billing(String mode) {
+    }
+
+    /** The bot that sends Telegram messages; empty = Telegram is off on this server. */
+    public record Telegram(String botToken) {
     }
 }

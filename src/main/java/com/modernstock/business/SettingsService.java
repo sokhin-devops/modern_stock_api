@@ -71,7 +71,14 @@ public class SettingsService {
         return get();
     }
 
-    private void put(String key, String value) {
+    /** One stored setting, for settings that are not part of BusinessSettings (Telegram). */
+    @Transactional(readOnly = true)
+    public String value(String key, String fallback) {
+        return repository.findByKey(key).map(BusinessSetting::getValue).orElse(fallback);
+    }
+
+    @Transactional
+    public void put(String key, String value) {
         BusinessSetting setting = repository.findByKey(key).orElseGet(BusinessSetting::new);
         setting.setKey(key);
         setting.setValue(value);

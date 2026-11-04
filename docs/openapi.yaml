@@ -251,6 +251,37 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /stock-counts/{id}/lines:
+    put:
+      tags:
+      - Stock counts
+      summary: Save counted quantities
+      description: Base units; empty = not counted (left unchanged when posting).
+      operationId: saveCountedQuantities
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CountedRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /purchase-orders/{id}:
     get:
       tags:
@@ -505,6 +536,55 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       security:
       - bearer: []
+  /expense-categories/{id}:
+    put:
+      tags:
+      - Expenses
+      operationId: updateExpenseCategory
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Expenses
+      summary: Delete an expense category
+      description: Switched off instead when expenses use it.
+      operationId: deleteExpenseCategory
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /customers/{id}:
     get:
       tags:
@@ -658,6 +738,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BusinessResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /business/telegram:
+    get:
+      tags:
+      - Telegram
+      operationId: getTelegramSettings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettings"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    put:
+      tags:
+      - Telegram
+      operationId: updateTelegramSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramSettings"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettings"
       security:
       - bearer: []
         business: []
@@ -1215,6 +1332,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock-counts:
+    get:
+      tags:
+      - Stock counts
+      summary: Stock counts
+      description: "Newest first, in the branches you see. Lines are left out; open\
+        \ one to see them."
+      operationId: listStockCounts
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - POSTED
+          - VOID
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseCountResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Stock counts
+      summary: Start a count
+      description: Takes the system quantity of every active product in the warehouse
+        (or category).
+      operationId: startStockCount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CountRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock-counts/{id}/post:
+    post:
+      tags:
+      - Stock counts
+      summary: Post a count
+      description: Adds or removes each difference as a stock count movement.
+      operationId: postStockCount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
       security:
       - bearer: []
         business: []
@@ -1841,6 +2061,156 @@ paths:
                 $ref: "#/components/schemas/MyBusinessResponse"
       security:
       - bearer: []
+  /expenses:
+    get:
+      tags:
+      - Expenses
+      summary: Expenses
+      description: "Newest first, in the branches you see; from/to are expense dates."
+      operationId: listExpenses
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseExpenseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Expenses
+      summary: Record an expense
+      operationId: createExpense
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /expenses/{id}/void:
+    post:
+      tags:
+      - Expenses
+      summary: Void an expense
+      description: "It stays in the list, marked void, and leaves the reports."
+      operationId: voidExpense
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /expense-categories:
+    get:
+      tags:
+      - Expenses
+      summary: Expense categories
+      description: A new business gets six to start with.
+      operationId: listExpenseCategories
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Expenses
+      operationId: createExpenseCategory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /exchange-rates:
     get:
       tags:
@@ -2105,6 +2475,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CashShiftResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /business/telegram/test:
+    post:
+      tags:
+      - Telegram
+      summary: Send a test message
+      description: 422 TELEGRAM_NOT_CONFIGURED when the server has no bot; 422 TELEGRAM_FAILED
+        when Telegram refuses.
+      operationId: sendTelegramTest
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
       security:
       - bearer: []
         business: []
@@ -2820,6 +3209,47 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /stock-counts/{id}:
+    get:
+      tags:
+      - Stock counts
+      operationId: getStockCount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Stock counts
+      operationId: deleteStockCount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /sales-receipts:
     get:
       tags:
@@ -2912,6 +3342,88 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/RoleResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /reports/sales:
+    get:
+      tags:
+      - Reports
+      summary: Sales and profit per day and per product
+      description: "Paid receipts and invoices in the branches you see. Defaults:\
+        \ the last 30 days. At most one year."
+      operationId: salesReport
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesReport"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /reports/profit:
+    get:
+      tags:
+      - Reports
+      summary: Profit and loss
+      description: "Sales revenue, cost of goods sold, expenses and net profit. Defaults:\
+        \ this month."
+      operationId: profitReport
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfitReport"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /reports/debts:
+    get:
+      tags:
+      - Reports
+      summary: Customer and supplier debts
+      description: "Who owes the business, and whom the business owes."
+      operationId: debtReport
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebtReport"
       security:
       - bearer: []
         business: []
@@ -3731,6 +4243,94 @@ components:
         balance:
           type: number
           description: "What you owe this supplier now, USD"
+    CountedLine:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        countedQty:
+          type: number
+          minimum: 0
+      required:
+      - itemId
+    CountedRequest:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountedLine"
+      required:
+      - lines
+    CountLineResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        sku:
+          type: string
+        unitSymbol:
+          type: string
+        systemQty:
+          type: number
+        countedQty:
+          type: number
+        difference:
+          type: number
+        value:
+          type: number
+    CountResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseName:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - POSTED
+          - VOID
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        postedAt:
+          type: string
+          format: date-time
+        counted:
+          type: integer
+          format: int32
+        differences:
+          type: integer
+          format: int32
+        differenceValue:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountLineResponse"
     PoLineRequest:
       type: object
       properties:
@@ -4089,6 +4689,33 @@ components:
           type: string
         devLink:
           type: string
+    CategoryRequest:
+      type: object
+      properties:
+        nameEn:
+          type: string
+          maxLength: 120
+          minLength: 0
+        nameKm:
+          type: string
+          maxLength: 120
+          minLength: 0
+        active:
+          type: boolean
+      required:
+      - nameEn
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nameEn:
+          type: string
+        nameKm:
+          type: string
+        active:
+          type: boolean
     CustomerRequest:
       type: object
       properties:
@@ -4162,35 +4789,6 @@ components:
         balance:
           type: number
           description: "What the customer owes now, USD (negative = deposit)"
-    CategoryRequest:
-      type: object
-      properties:
-        parentId:
-          type: integer
-          format: int64
-        nameEn:
-          type: string
-          maxLength: 120
-          minLength: 0
-        nameKm:
-          type: string
-          maxLength: 120
-          minLength: 0
-      required:
-      - nameEn
-    CategoryResponse:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        parentId:
-          type: integer
-          format: int64
-        nameEn:
-          type: string
-        nameKm:
-          type: string
     UpdateBusinessRequest:
       type: object
       properties:
@@ -4273,6 +4871,26 @@ components:
           - ARCHIVED
         onboardingCompleted:
           type: boolean
+    TelegramSettings:
+      type: object
+      properties:
+        chatId:
+          type: string
+          description: "Chat or group ID, e.g. -1001234567890; the bot must be in\
+            \ the group"
+          maxLength: 40
+          minLength: 0
+        dailySummary:
+          type: boolean
+          description: Sales summary every evening
+        lowStockAlerts:
+          type: boolean
+        expiryAlerts:
+          type: boolean
+        botConfigured:
+          type: boolean
+          description: "Read only: the server has a bot"
+          readOnly: true
     BusinessSettings:
       type: object
       properties:
@@ -4598,6 +5216,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllocationLine"
+    CountRequest:
+      type: object
+      properties:
+        warehouseId:
+          type: integer
+          format: int64
+        categoryId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - warehouseId
     VoidRequest:
       type: object
       properties:
@@ -5210,6 +5843,99 @@ components:
       required:
       - businessType
       - nameEn
+    ExpenseRequest:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+          description: Defaults to the selected branch
+        categoryId:
+          type: integer
+          format: int64
+        supplierId:
+          type: integer
+          format: int64
+        expenseDate:
+          type: string
+          format: date
+          description: Defaults to today
+        method:
+          type: string
+          enum:
+          - CASH
+          - KHQR
+          - BANK
+        currency:
+          type: string
+          enum:
+          - USD
+          - KHR
+        amount:
+          type: number
+          description: USD with cents or whole riel
+          minimum: 0
+        reference:
+          type: string
+          maxLength: 60
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - amount
+      - categoryId
+      - currency
+      - method
+    ExpenseResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        expenseDate:
+          type: string
+          format: date
+        method:
+          type: string
+          enum:
+          - CASH
+          - KHQR
+          - BANK
+        currency:
+          type: string
+          enum:
+          - USD
+          - KHR
+        amount:
+          type: number
+        exchangeRate:
+          type: number
+        amountUsd:
+          type: number
+        reference:
+          type: string
+        note:
+          type: string
+        status:
+          type: string
+          enum:
+          - POSTED
+          - VOID
     RateRequest:
       type: object
       properties:
@@ -5940,6 +6666,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BatchRow"
+    PageResponseCountResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     PageResponseSalesReceiptResponse:
       type: object
       properties:
@@ -5977,6 +6722,117 @@ components:
           type: array
           items:
             type: string
+    DayRow:
+      type: object
+      properties:
+        day:
+          type: string
+          format: date
+        sales:
+          type: number
+        cost:
+          type: number
+        profit:
+          type: number
+    ProductRow:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        qty:
+          type: number
+        sales:
+          type: number
+        profit:
+          type: number
+    SalesReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        documents:
+          type: integer
+          format: int64
+        sales:
+          type: number
+        cost:
+          type: number
+        grossProfit:
+          type: number
+        vat:
+          type: number
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayRow"
+        topProducts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductRow"
+    ExpenseRow:
+      type: object
+      properties:
+        category:
+          type: string
+        amount:
+          type: number
+    ProfitReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        revenue:
+          type: number
+        costOfGoods:
+          type: number
+        grossProfit:
+          type: number
+        expenses:
+          type: number
+        netProfit:
+          type: number
+        expensesByCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseRow"
+    DebtReport:
+      type: object
+      properties:
+        customersOwe:
+          type: number
+        weOwe:
+          type: number
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebtRow"
+        suppliers:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebtRow"
+    DebtRow:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        phone:
+          type: string
+        balance:
+          type: number
     PageResponsePurchaseOrderResponse:
       type: object
       properties:
@@ -6179,6 +7035,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GoodsReceiptResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseExpenseResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseResponse"
         page:
           type: integer
           format: int32

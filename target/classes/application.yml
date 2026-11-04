@@ -61,3 +61,6 @@ app:
   demo-data: false
   billing:
     mode: demo
+  telegram:
+    # From @BotFather. Empty: businesses can save their chat ID, but nothing is sent.
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
