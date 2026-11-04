@@ -36,4 +36,6 @@ public class SaleItem extends TenantLine {
     private BigDecimal discount = BigDecimal.ZERO;
     @Column(nullable = false)
     private BigDecimal costAtSale;
+    /** The sales order line a delivered line fills, if any. */
+    private Long salesOrderItemId;
 }

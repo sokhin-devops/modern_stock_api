@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import com.modernstock.common.CurrentUser;
 import com.modernstock.common.PageResponse;
 import com.modernstock.money.Payment;
 import com.modernstock.money.PaymentRepository;
+import com.modernstock.notification.TelegramAlerts;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
@@ -78,6 +80,7 @@ public class CashShiftService {
     private final SalesReceiptRepository receipts;
     private final UserRepository users;
     private final BranchScope scope;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public CashShiftResponse open(OpenShiftRequest req) {
@@ -135,6 +138,9 @@ public class CashShiftService {
         s.setNote(req.note());
         s.setClosedAt(Instant.now());
         s.setStatus(CashShift.Status.CLOSED);
+        if (short_(s.getCountedUsd(), s.getExpectedUsd()) || short_(s.getCountedKhr(), s.getExpectedKhr())) {
+            events.publishEvent(new TelegramAlerts.ShiftShort(BusinessContext.businessId(), s.getId()));
+        }
         return toResponse(s);
     }
 
@@ -166,8 +172,11 @@ public class CashShiftService {
     }
 
     private Totals totals(CashShift s) {
-        List<Payment> cash = payments.findByCashShiftIdAndStatus(s.getId(), Payment.Status.POSTED).stream()
-                .filter(p -> p.getMethod() == Payment.Method.CASH && p.getDirection() == Payment.Direction.IN).toList();
+        List<Payment> posted = payments.findByCashShiftIdAndStatus(s.getId(), Payment.Status.POSTED).stream()
+                .filter(p -> p.getMethod() == Payment.Method.CASH).toList();
+        List<Payment> cash = posted.stream().filter(p -> p.getDirection() == Payment.Direction.IN).toList();
+        // Cash refunds (credit notes) leave the drawer like cash taken out.
+        List<Payment> refunds = posted.stream().filter(p -> p.getDirection() == Payment.Direction.OUT).toList();
         List<CashMovement> moves = movements.findByCashShiftIdOrderById(s.getId());
         return new Totals(
                 sum(cash.stream().filter(p -> p.getCurrency() == Payment.Currency.USD).map(Payment::getAmount).toList()),
@@ -176,8 +185,10 @@ public class CashShiftService {
                 receipts.changeKhr(s.getId()),
                 sum(moves, CashMovement.Direction.IN, Payment.Currency.USD),
                 sum(moves, CashMovement.Direction.IN, Payment.Currency.KHR),
-                sum(moves, CashMovement.Direction.OUT, Payment.Currency.USD),
-                sum(moves, CashMovement.Direction.OUT, Payment.Currency.KHR));
+                sum(moves, CashMovement.Direction.OUT, Payment.Currency.USD)
+                        .add(sum(refunds.stream().filter(p -> p.getCurrency() == Payment.Currency.USD).map(Payment::getAmount).toList())),
+                sum(moves, CashMovement.Direction.OUT, Payment.Currency.KHR)
+                        .add(sum(refunds.stream().filter(p -> p.getCurrency() == Payment.Currency.KHR).map(Payment::getAmount).toList())));
     }
 
     private static BigDecimal sum(List<BigDecimal> values) {
@@ -202,5 +213,9 @@ public class CashShiftService {
                 s.getCountedKhr() == null ? null : s.getCountedKhr().subtract(expectedKhr),
                 receipts.countByCashShiftIdAndStatus(s.getId(), SalesReceipt.Status.POSTED),
                 receipts.countByCashShiftIdAndStatus(s.getId(), SalesReceipt.Status.VOID));
+    }
+
+    private static boolean short_(BigDecimal counted, BigDecimal expected) {
+        return counted != null && expected != null && counted.compareTo(expected) < 0;
     }
 }

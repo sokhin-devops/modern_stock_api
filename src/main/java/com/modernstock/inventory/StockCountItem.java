@@ -1,6 +1,7 @@
 package com.modernstock.inventory;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import com.modernstock.common.TenantLine;
 import jakarta.persistence.Column;
@@ -17,9 +18,13 @@ public class StockCountItem extends TenantLine {
 
     @Column(nullable = false)
     private Long productId;
-    /** Base units the system had when the count started. */
+    @Column(nullable = false)
+    private Long warehouseId;
+    /** Base units the system had at snapshotAt: when the count started, or when the line was counted again. */
     @Column(nullable = false)
     private BigDecimal systemQty;
+    @Column(nullable = false)
+    private Instant snapshotAt;
     /** Base units counted; empty = not counted yet (left as it is). */
     private BigDecimal countedQty;
     /** Average cost when the count started, to value the differences. */

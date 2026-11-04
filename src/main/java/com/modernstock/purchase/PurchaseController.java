@@ -1,6 +1,11 @@
 package com.modernstock.purchase;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +28,7 @@ import com.modernstock.money.AllocationRepository;
 import com.modernstock.money.Payment;
 import com.modernstock.money.PaymentRepository;
 import com.modernstock.money.PaymentResponse;
+import com.modernstock.partner.SupplierRepository;
 import com.modernstock.purchase.PurchaseService.BillResponse;
 import com.modernstock.purchase.PurchaseService.BillUpdateRequest;
 import com.modernstock.purchase.PurchaseService.GoodsReceiptResponse;
@@ -47,6 +53,7 @@ public class PurchaseController {
     private final PaymentRepository payments;
     private final AllocationRepository allocations;
     private final BranchScope scope;
+    private final SupplierRepository suppliers;
 
     @GetMapping("/purchase-orders")
     @PreAuthorize("hasAuthority('purchase_order:view')")
@@ -171,7 +178,11 @@ public class PurchaseController {
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> listSupplierPayments(@RequestParam(required = false) Long supplierId,
                                                           @ParameterObject Pageable pageable) {
-        return PageResponse.of(payments.search(Payment.Direction.OUT, scope.branchIds(), supplierId, pageable),
-                p -> PaymentResponse.from(p, allocations.findByFromTypeAndFromId(Allocation.FromType.PAYMENT, p.getId())));
+        Page<Payment> page = payments.search(Payment.Direction.OUT, List.of(Payment.PartyType.SUPPLIER), scope.branchIds(),
+                supplierId, pageable);
+        Map<Long, String> names = new HashMap<>();
+        suppliers.findAllById(page.map(Payment::getPartyId).toSet()).forEach(s -> names.put(s.getId(), s.getName()));
+        return PageResponse.of(page, p -> PaymentResponse.from(p,
+                allocations.findByFromTypeAndFromId(Allocation.FromType.PAYMENT, p.getId()), names.get(p.getPartyId())));
     }
 }

@@ -39,7 +39,7 @@ public class DashboardService {
                         BigDecimal weOwe, BigDecimal billsDueSoon, long overdueBills) {
     }
 
-    public record Waiting(Long approvals, Long transfersToReceive, Long countsInProgress) {
+    public record Waiting(Long approvals, Long transfersToReceive, Long countsInProgress, Long countsToApprove) {
     }
 
     public record DashboardResponse(boolean ownSalesOnly, TodaySales today, BigDecimal profitToday, BigDecimal profitMonth,
@@ -67,15 +67,22 @@ public class DashboardService {
         if (sales) {
             MapSqlParameterSource p = reports.params(today.minusDays(CHART_DAYS - 1L), today);
             todaySales = jdbc.queryForObject("""
-                    select coalesce(sum(total), 0) as usd, coalesce(sum(total_khr), 0) as khr, count(*) as docs from (
-                      select r.total, r.total_khr from sales_receipts r
+                    select coalesce(sum(total), 0) as usd, coalesce(sum(total_khr), 0) as khr, count(*) filter (where sale) as docs from (
+                      select r.total, r.total_khr, true as sale from sales_receipts r
                        where r.business_id = :business and r.status = 'POSTED' and r.branch_id in (:branches)
                          and (cast(:cashier as bigint) is null or r.cashier_id = :cashier)
                          and (r.sold_at at time zone 'Asia/Phnom_Penh')::date = :to
                       union all
-                      select i.total, i.total_khr from invoices i
+                      select i.total, i.total_khr, true from invoices i
                        where i.business_id = :business and i.status <> 'VOID' and i.branch_id in (:branches)
-                         and (cast(:cashier as bigint) is null or i.created_by = :cashier) and i.invoice_date = :to) d
+                         and (cast(:cashier as bigint) is null or i.created_by = :cashier) and i.invoice_date = :to
+                      union all
+                      select -sr.total, -round(sr.total * coalesce((select x.usd_to_khr from exchange_rates x
+                               where x.business_id = sr.business_id order by x.rate_date desc limit 1), 0)), false
+                        from sales_returns sr
+                       where sr.business_id = :business and sr.status = 'POSTED' and sr.branch_id in (:branches)
+                         and (cast(:cashier as bigint) is null or sr.created_by = :cashier)
+                         and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date = :to) d
                     """, p, (rs, n) -> new TodaySales(ReportService.money(rs.getBigDecimal("usd")), rs.getBigDecimal("khr"),
                     rs.getLong("docs")));
             Map<LocalDate, DayPoint> byDay = new HashMap<>();
@@ -118,8 +125,8 @@ public class DashboardService {
         return new DashboardResponse(sales && !money, todaySales, profitToday, profitMonth, days, top, debts, waiting());
     }
 
-    /** What waits for this member: adjustments to approve, transfers to receive, counts not posted yet. */
-    private Waiting waiting() {
+    /** What waits for this member: adjustments and counts to approve, transfers to receive, counts still being counted. */
+    Waiting waiting() {
         MapSqlParameterSource p = new MapSqlParameterSource()
                 .addValue("business", BusinessContext.businessId())
                 .addValue("branches", scope.branchIds())
@@ -135,6 +142,10 @@ public class DashboardService {
         Long counts = BusinessContext.has("count:manage") ? jdbc.queryForObject("""
                 select count(*) from stock_counts where business_id = :business and status = 'DRAFT' and branch_id in (:branches)
                 """, p, Long.class) : null;
-        return approvals == null && receive == null && counts == null ? null : new Waiting(approvals, receive, counts);
+        Long toApprove = BusinessContext.has("adjustment:approve") ? jdbc.queryForObject("""
+                select count(*) from stock_counts where business_id = :business and status = 'SUBMITTED' and branch_id in (:branches)
+                """, p, Long.class) : null;
+        return approvals == null && receive == null && counts == null && toApprove == null ? null
+                : new Waiting(approvals, receive, counts, toApprove);
     }
 }

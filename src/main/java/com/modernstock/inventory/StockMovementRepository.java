@@ -23,4 +23,13 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             """)
     Page<StockMovement> search(Long productId, Collection<Long> warehouseIds, Instant from, Instant to,
                                Pageable pageable);
+
+    /** [productId, warehouseId, last movement time] of products that moved since a time, leaving out one kind of document. */
+    @Query("""
+            select m.productId, m.warehouseId, max(m.createdAt) from StockMovement m
+            where m.warehouseId in :warehouseIds and m.productId in :productIds and m.createdAt > :since
+              and (m.referenceType is null or m.referenceType <> :except)
+            group by m.productId, m.warehouseId
+            """)
+    List<Object[]> lastMoves(Collection<Long> warehouseIds, Collection<Long> productIds, Instant since, String except);
 }

@@ -12,14 +12,14 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Links money (a payment or credit note) to the documents it pays, in USD. */
+/** Links money (a payment, credit note or supplier credit) to the documents it pays, in USD. */
 @Getter
 @Setter
 @Entity
 @Table(name = "allocations")
 public class Allocation extends TenantEntity {
 
-    public enum FromType { PAYMENT, CREDIT_NOTE }
+    public enum FromType { PAYMENT, CREDIT_NOTE, SUPPLIER_CREDIT }
 
     public enum ToType { INVOICE, BILL, SALES_RECEIPT }
 

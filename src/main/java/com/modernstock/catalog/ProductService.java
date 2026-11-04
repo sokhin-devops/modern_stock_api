@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.billing.EntitlementService;
 import com.modernstock.business.BranchRepository;
@@ -20,6 +21,7 @@ import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.common.ApiException;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.PageResponse;
 import com.modernstock.inventory.StockLevel;
 import com.modernstock.inventory.StockLevelRepository;
@@ -70,7 +72,10 @@ public class ProductService {
                                   @Schema(description = "Only for members who manage products") BigDecimal avgCost,
                                   BigDecimal reorderLevel, int leadTimeDays, boolean trackExpiry, boolean vatExempt,
                                   boolean active, List<ProductUnitResponse> units,
-                                  @Schema(description = "Base units on hand in the branches you are looking at") BigDecimal qtyOnHand) {
+                                  @Schema(description = "Base units on hand in the branches you are looking at") BigDecimal qtyOnHand,
+                                  @Schema(description = "Path of the photo under the API (/public/files/...), or null") String photoUrl,
+                                  @Schema(description = "Reorder level of the branches you are looking at: each branch's own level, "
+                                          + "or the product's, added up (FR-4.7)") BigDecimal reorderAt) {
     }
 
     public record BarcodeLookupResponse(ProductResponse product, Long unitId, BigDecimal factor,
@@ -85,22 +90,52 @@ public class ProductService {
     public record BranchPriceResponse(Long branchId, Long unitId, BigDecimal sellPrice) {
     }
 
+    public record BranchReorderRequest(@NotNull Long branchId,
+                                       @Schema(description = "Empty removes the branch's own level; 0 = not watched in this branch")
+                                       @DecimalMin("0") BigDecimal reorderLevel) {
+    }
+
+    public record BranchReorderResponse(Long branchId, BigDecimal reorderLevel) {
+    }
+
     private final ProductRepository products;
     private final UnitRepository units;
     private final CategoryRepository categories;
     private final BranchPriceRepository branchPrices;
+    private final BranchReorderLevelRepository reorderOverrides;
+    private final ReorderLevels reorderLevels;
     private final BranchRepository branches;
     private final StockLevelRepository levels;
     private final BranchScope scope;
     private final BranchService branchService;
     private final EntitlementService entitlements;
+    private final FileStorage files;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String q, Long categoryId, Boolean active, Pageable pageable) {
         Page<Product> page = products.search(like(q), categoryId, active == null ? Boolean.TRUE : active, pageable);
         Map<Long, BigDecimal> onHand = onHand(page.getContent().stream().map(Product::getId).toList(), scope.warehouseIds());
         Map<Long, String> symbols = unitSymbols();
-        return PageResponse.of(page, p -> toResponse(p, symbols, onHand.getOrDefault(p.getId(), BigDecimal.ZERO)));
+        Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(page.getContent());
+        return PageResponse.of(page, p -> toResponse(p, symbols, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId())));
+    }
+
+    /** A new photo replaces the old one (FR-1.1). */
+    @Transactional
+    public ProductResponse setPhoto(Long id, MultipartFile file) {
+        Product p = products.get(id);
+        String old = p.getImagePath();
+        p.setImagePath(files.saveImage(file, "products"));
+        files.delete(old);
+        return get(id);
+    }
+
+    @Transactional
+    public ProductResponse removePhoto(Long id) {
+        Product p = products.get(id);
+        files.delete(p.getImagePath());
+        p.setImagePath(null);
+        return get(id);
     }
 
     @Transactional(readOnly = true)
@@ -191,6 +226,39 @@ public class ProductService {
         }
         branchPrices.flush();
         return branchPrices(productId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BranchReorderResponse> branchReorderLevels(Long productId) {
+        products.get(productId);
+        return reorderOverrides.findByProductId(productId).stream()
+                .filter(o -> BusinessContext.canAccessBranch(o.getBranchId()))
+                .map(o -> new BranchReorderResponse(o.getBranchId(), o.getReorderLevel())).toList();
+    }
+
+    @Transactional
+    public List<BranchReorderResponse> setBranchReorderLevels(Long productId, List<BranchReorderRequest> req) {
+        products.get(productId);
+        for (BranchReorderRequest r : req) {
+            branches.get(r.branchId());
+            BusinessContext.requireBranch(r.branchId());
+            BranchReorderLevel own = reorderOverrides.findByBranchIdAndProductId(r.branchId(), productId).orElse(null);
+            if (r.reorderLevel() == null) {
+                if (own != null) {
+                    reorderOverrides.delete(own);
+                }
+                continue;
+            }
+            if (own == null) {
+                own = new BranchReorderLevel();
+                own.setBranchId(r.branchId());
+                own.setProductId(productId);
+            }
+            own.setReorderLevel(r.reorderLevel());
+            reorderOverrides.save(own);
+        }
+        reorderOverrides.flush();
+        return branchReorderLevels(productId);
     }
 
     // ------------------------------------------------------------------ rules used by documents
@@ -299,6 +367,10 @@ public class ProductService {
     }
 
     private ProductResponse toResponse(Product p, Map<Long, String> symbols, BigDecimal qtyOnHand) {
+        return toResponse(p, symbols, qtyOnHand, reorderLevels.inScope(List.of(p)).get(p.getId()));
+    }
+
+    private ProductResponse toResponse(Product p, Map<Long, String> symbols, BigDecimal qtyOnHand, BigDecimal reorderAt) {
         List<ProductUnitResponse> unitList = p.getUnits().stream()
                 .map(u -> new ProductUnitResponse(u.getUnitId(), symbols.get(u.getUnitId()), u.getFactor(),
                         u.getBarcode(), u.getSellPrice()))
@@ -306,7 +378,8 @@ public class ProductService {
         return new ProductResponse(p.getId(), p.getSku(), p.getBarcode(), p.getNameEn(), p.getNameKm(),
                 p.getCategoryId(), p.getBaseUnitId(), symbols.get(p.getBaseUnitId()), p.getSellPrice(),
                 BusinessContext.has("product:manage") ? p.getAvgCost() : null, p.getReorderLevel(),
-                p.getLeadTimeDays(), p.isTrackExpiry(), p.isVatExempt(), p.isActive(), unitList, qtyOnHand);
+                p.getLeadTimeDays(), p.isTrackExpiry(), p.isVatExempt(), p.isActive(), unitList, qtyOnHand,
+                FileStorage.url(p.getImagePath()), reorderAt);
     }
 
     static String like(String q) {

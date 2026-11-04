@@ -9,6 +9,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.modernstock.common.ApiException;
+import com.modernstock.report.MoneyReportService.Party;
+import com.modernstock.report.MoneyReportService.PurchaseReport;
+import com.modernstock.report.MoneyReportService.PurchasesBy;
+import com.modernstock.report.MoneyReportService.ShiftReport;
+import com.modernstock.report.MoneyReportService.Statement;
+import com.modernstock.report.MoneyReportService.VatReport;
 import com.modernstock.report.ReportService.AbcReport;
 import com.modernstock.report.ReportService.CustomerDebtReport;
 import com.modernstock.report.ReportService.ProfitReport;
@@ -17,8 +23,10 @@ import com.modernstock.report.ReportService.SalesReport;
 import com.modernstock.report.ReportService.SupplierDebtReport;
 import com.modernstock.report.StockReportService.CountReport;
 import com.modernstock.report.StockReportService.ExpiryReport;
+import com.modernstock.report.StockReportService.LossReport;
 import com.modernstock.report.StockReportService.OnHandReport;
 import com.modernstock.report.StockReportService.ReorderReport;
+import com.modernstock.report.StockReportService.SlowReport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +43,7 @@ public class ReportController {
 
     private final ReportService reports;
     private final StockReportService stock;
+    private final MoneyReportService money;
 
     @Operation(summary = "Sales summary and gross profit",
             description = "Grouped by DAY, PRODUCT, CATEGORY, BRANCH or CASHIER. Cost, profit and margin only for Owners and "
@@ -112,6 +121,60 @@ public class ReportController {
         LocalDate start = from == null ? end.minusDays(29) : from;
         reports.params(start, end); // the same date rules as every report
         return stock.countDifferences(start, end);
+    }
+
+    @Operation(summary = "Adjustments and losses", description = "Stock taken out by adjustments (by reason), short counts and damaged "
+            + "returns, valued at cost for members who see cost. Defaults: the last 30 days.")
+    @GetMapping("/losses")
+    @PreAuthorize("hasAuthority('report:view')")
+    public LossReport lossesReport(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to) {
+        LocalDate end = end(to);
+        return stock.losses(from == null ? end.minusDays(29) : from, end);
+    }
+
+    @Operation(summary = "Slow-moving and dead stock", description = "Products in stock not sold for 30, 60, 90 or 180 days, or never.")
+    @GetMapping("/slow-moving")
+    @PreAuthorize("hasAuthority('report:view')")
+    public SlowReport slowMovingReport(@RequestParam(defaultValue = "60") int days) {
+        if (days != 30 && days != 60 && days != 90 && days != 180) {
+            throw ApiException.badRequest("SLOW_DAYS_INVALID");
+        }
+        return stock.slowMoving(days);
+    }
+
+    @Operation(summary = "Cash shifts", description = "Closed shifts: expected and counted cash in USD and KHR, over or short, voids.")
+    @GetMapping("/cash-shifts")
+    @PreAuthorize("hasAuthority('report:view')")
+    public ShiftReport cashShiftReport(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to) {
+        LocalDate end = end(to);
+        return money.cashShifts(from == null ? end.minusDays(29) : from, end);
+    }
+
+    @Operation(summary = "VAT summary", description = "VAT on sales (less returns) and on purchases per month. Defaults: the last 12 months.")
+    @GetMapping("/vat")
+    @PreAuthorize("hasAuthority('report:view')")
+    public VatReport vatReport(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to) {
+        LocalDate end = end(to);
+        return money.vat(from == null ? end.withDayOfMonth(1).minusMonths(11) : from, end);
+    }
+
+    @Operation(summary = "Purchases", description = "Goods received less returns, by SUPPLIER or PRODUCT. Defaults: the last 30 days.")
+    @GetMapping("/purchases")
+    @PreAuthorize("hasAuthority('report:view')")
+    public PurchaseReport purchasesReport(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                          @RequestParam(defaultValue = "SUPPLIER") PurchasesBy by) {
+        LocalDate end = end(to);
+        return money.purchases(from == null ? end.minusDays(29) : from, end, by);
+    }
+
+    @Operation(summary = "Customer or supplier statement",
+            description = "Every invoice (bill), payment, credit and refund with a running balance. Defaults: the last 90 days.")
+    @GetMapping("/statement")
+    @PreAuthorize("hasAuthority('report:view')")
+    public Statement statement(@RequestParam Party party, @RequestParam Long id, @RequestParam(required = false) LocalDate from,
+                               @RequestParam(required = false) LocalDate to) {
+        LocalDate end = end(to);
+        return money.statement(party, id, from == null ? end.minusDays(89) : from, end);
     }
 
     private static LocalDate end(LocalDate to) {

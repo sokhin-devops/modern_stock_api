@@ -27,4 +27,7 @@ public class Branch extends TenantEntity {
     private boolean main;
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+    /** Above the plan's branch limit after a plan ended: viewable, no new work (PLAIN.md 11.13 rule 3). */
+    @Column(nullable = false)
+    private boolean readOnly;
 }

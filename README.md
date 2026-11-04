@@ -28,7 +28,7 @@ When the API is ready, it prints the link and the logins:
 ```
 
 - **Port:** if 8080 is taken (common on Windows), the API uses the next free port up to 8099 and says so. To choose the port yourself, set `PORT`.
-- **Database:** it is kept in `.data/postgres`, so your data survives restarts. It listens on port `54320`, user `postgres`, password `postgres`, so DBeaver can open it.
+- **Database:** it is kept in `.data/postgres`, so your data survives restarts. It listens on port `54320` (when Windows has reserved that port, the next free one from `55432`, printed at start; `LOCAL_DB_PORT` sets one), user `postgres`, password `postgres`, so DBeaver can open it.
 - **Starting fresh:** stop the API and delete the `.data` folder.
 - **Stopping:** press Ctrl+C.
 
@@ -134,14 +134,14 @@ src/main/resources/db/migration/   V1__init.sql (schema), V2__seed_roles.sql, V3
 | Area (PLAIN.md) | Built now | Next |
 |---|---|---|
 | M6 Accounts and businesses | Sign-up and verification, login, rotating refresh cookie, logout (one or all devices), forgot and reset password, my businesses, create business + Pro trial, setup page, invitations (link or email), join with an invitation, members, last-Owner rule, reset links for staff without email | Rate limiting (Bucket4j), custom roles, activity log |
-| M7 Settings | Business profile, settings (VAT, riel rounding, discount limit, negative stock), branches, warehouses (sales and receiving roles), exchange rates, Telegram chat and alert choices with a test message (`/business/telegram`) | Sending the daily summary and alerts on a schedule, receipt layout |
-| M1 Products | Products, packaging units with barcodes, barcode lookup, branch prices, categories, units (the web app imports products from Excel or CSV through `POST /products`) | Import on the server for very large files |
+| M7 Settings | Business profile and logo (`/business/logo`), settings (VAT, riel rounding, discount limit, negative stock), branches (read-only above the plan's limit), warehouses (sales and receiving roles), exchange rates, Telegram: connect with a one-time code (`/business/telegram/connect`, webhook `/public/telegram/webhook` or polling in development), daily summary at 07:00 Phnom Penh time, test and "summary now" | Immediate alerts, receipt layout |
+| M1 Products | Products with a photo (`/products/{id}/photo`, files in `app.files.dir`, served at `/public/files/**`), packaging units with barcodes, barcode lookup, branch prices, categories, units, import of products and opening stock with a check first (`/import/products`, `/import/opening-stock`, `dryRun`) | Branch prices screen |
 | M2 Purchases | Purchase orders, partial receiving with warnings when quantity or price differs from the order, bills created from receipts, supplier payments (oldest bills first or chosen bills), "Save, receive and pay now", expenses and expense categories (`/expenses`, `/expense-categories`) | Purchase returns, supplier credits, statements |
 | M3 Sales | POS checkout (sales receipt, or delivery + invoice), credit limit, discount limit, VAT, USD + KHR with change in riel, voiding a sale, payments received, cash shifts with expected and counted cash per currency | Quotations, sales orders, sales returns, credit notes, tax invoices |
 | M4 Inventory | Stock ledger, stock levels, stock card, batches and expiry, low stock, opening stock, adjustments (posted, or waiting for approval), moves, branch transfers with send, receive, lost in transit and return to sender, stock counts (start, count, post the differences; `/stock-counts`) | Voiding transfers and adjustments |
-| M5 Reports | Stock summary (value, in transit, low stock, expiring), sales and profit per day and per product (`/reports/sales`), profit and loss with expenses (`/reports/profit`), customer and supplier debts (`/reports/debts`) | Excel export, Telegram summary |
-| M10 Billing | Plans, trial, limits on branches, members and products, `GET /billing` | Subscribe, change plan, demo payment, renewals job |
-| M8 Super admin | — | `/admin/**` (the security rule is already in place) |
+| M5 Reports | Dashboard by role (`/dashboard`), in-app alerts (`/alerts`), the nine Must reports scoped by role and branch: sales summary and gross profit (`/reports/sales?by=`), customer and supplier debt, stock on hand, reorder suggestions, near expiry, count differences, ABC analysis; profit and loss | Excel export, print view, the Should reports |
+| M10 Billing | Plans, trial, limits, subscribe (in the trial: billed when it ends), upgrade (new period today), downgrade (end of period, blocked over limits), cancel and resume, billing invoices (SUB-…), demo gateway (`PaymentGateway`, Pending → Succeeded/Failed), hourly lifecycle job (trial end, renewal, 7 days past due, expiry to Free), extras switched off and back on (`PlanLimits`) | Yearly billing, add-ons, proration, manual transfer, reminders |
+| M8 Super admin | Businesses with their subscription, demo controls End trial now and Run renewal now (`/admin/businesses`); demo super admin admin@demo.com / Demo@1234 | Suspend, verify by hand, contact messages, plans screen |
 
 ## Tests
 
@@ -186,7 +186,11 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `JWT_SECRET` | dev-only value | At least 32 characters. Required with `prod` |
 | `WEB_APP_URL` | `http://localhost:4201` | Used to build verification, invitation and reset links |
 | `CORS_ORIGINS` | `http://localhost:4200,http://localhost:4201` | The website and the web app |
-| `TELEGRAM_BOT_TOKEN` | empty | The Telegram bot (from @BotFather). Empty: businesses can save their chat, but nothing is sent |
+| `TELEGRAM_BOT_TOKEN` | empty | The Telegram bot (from @BotFather). Empty: Telegram is off |
+| `TELEGRAM_BOT_USERNAME` | empty | The bot's @username for the t.me links (asked from Telegram when empty) |
+| `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET` | empty | Public HTTPS address of `/api/v1/public/telegram/webhook`, registered with Telegram at start, and the secret it must send back |
+| `TELEGRAM_POLLING` | `false` | Development without a public address: ask Telegram for new messages every 3 seconds instead of the webhook |
+| `app.files.dir` | `.data/files` | Where product photos and logos are kept |
 | `SPRING_PROFILES_ACTIVE` | `dev` | `prod` turns off demo data and dev links, and hides Swagger unless `SWAGGER_ENABLED=true` |
 
 ## Notes for the team

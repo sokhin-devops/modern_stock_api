@@ -50,7 +50,9 @@ public class BranchService {
     }
 
     public record BranchResponse(Long id, String code, String nameEn, String nameKm, String address, String phone,
-                                 String province, boolean main, boolean active, List<WarehouseResponse> warehouses) {
+                                 String province, boolean main, boolean active,
+                                 @Schema(description = "Above the plan's branch limit: viewable, no new work") boolean readOnly,
+                                 List<WarehouseResponse> warehouses) {
     }
 
     private final BranchRepository branches;
@@ -235,7 +237,7 @@ public class BranchService {
 
     private BranchResponse toResponse(Branch b) {
         return new BranchResponse(b.getId(), b.getCode(), b.getNameEn(), b.getNameKm(), b.getAddress(), b.getPhone(),
-                b.getProvince(), b.isMain(), b.isActive(),
+                b.getProvince(), b.isMain(), b.isActive(), b.isReadOnly(),
                 warehouses.findByBranchIdOrderByIdAsc(b.getId()).stream().map(WarehouseResponse::from).toList());
     }
 }

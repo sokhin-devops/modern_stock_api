@@ -51,7 +51,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Development only (app.demo-data=true): a ready business to try in Swagger UI.
- * Owner owner@demo.com / Demo@1234, cashier "dara" / Demo@1234, "Sokha Mini-mart" with two branches.
+ * Owner owner@demo.com / Demo@1234, cashier "dara" / Demo@1234, "Sokha Mini-mart" with two branches, and the
+ * platform admin admin@demo.com / Demo@1234.
  */
 @Slf4j
 @Component
@@ -60,6 +61,8 @@ import lombok.extern.slf4j.Slf4j;
 public class DemoDataSeeder implements ApplicationRunner {
 
     public static final String OWNER_EMAIL = "owner@demo.com";
+    /** The platform admin, for the billing demo controls (PLAIN.md 11.13). */
+    public static final String ADMIN_EMAIL = "admin@demo.com";
     public static final String PASSWORD = "Demo@1234";
 
     private final UserRepository users;
@@ -77,6 +80,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (users.findByEmailIgnoreCase(ADMIN_EMAIL).isEmpty()) {
+            User admin = user("Platform Admin", ADMIN_EMAIL, null, null);
+            admin.setSuperAdmin(true);
+            users.save(admin);
+            log.info("Demo super admin ready: {} / {}", ADMIN_EMAIL, PASSWORD);
+        }
         if (users.findByEmailIgnoreCase(OWNER_EMAIL).isPresent()) {
             // the cashier is created last: if it is missing, an earlier start stopped half-way
             if (!users.existsByUsernameIgnoreCase("dara")) {

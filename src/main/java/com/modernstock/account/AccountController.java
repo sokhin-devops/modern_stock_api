@@ -58,10 +58,18 @@ import lombok.RequiredArgsConstructor;
 public class AccountController {
 
     public record UpdateMeRequest(@NotBlank @Size(max = 120) String fullName,
+                                  @Schema(description = "Sign-in name; empty keeps it") @Size(min = 3, max = 60)
+                                  @Pattern(regexp = "^[A-Za-z0-9._-]+$") String username,
                                   @Pattern(regexp = Phones.KH, message = "{phone.invalid}") String phone,
                                   @Pattern(regexp = "km|en") String locale,
                                   @Pattern(regexp = "light|dark|system") String uiMode,
                                   @Pattern(regexp = "comfortable|compact") String uiDensity) {
+    }
+
+    /** Only what is sent changes (the app saves one choice at a time). */
+    public record PreferencesRequest(@Pattern(regexp = "km|en") String locale,
+                                     @Pattern(regexp = "light|dark|system") String uiMode,
+                                     @Pattern(regexp = "comfortable|compact") String uiDensity) {
     }
 
     public record ChangePasswordRequest(@NotBlank String currentPassword,
@@ -98,7 +106,31 @@ public class AccountController {
     public UserResponse updateMe(@Valid @RequestBody UpdateMeRequest req) {
         User u = currentUser();
         u.setFullName(req.fullName().trim());
+        String username = req.username() == null ? null : req.username().trim();
+        if (username != null && !username.isEmpty() && !username.equalsIgnoreCase(u.getUsername())) {
+            if (users.existsByUsernameIgnoreCase(username)) {
+                throw ApiException.conflict("USERNAME_TAKEN");
+            }
+            u.setUsername(username);
+        }
         u.setPhone(req.phone());
+        if (req.locale() != null) {
+            u.setLocale(req.locale());
+        }
+        if (req.uiMode() != null) {
+            u.setUiMode(req.uiMode());
+        }
+        if (req.uiDensity() != null) {
+            u.setUiDensity(req.uiDensity());
+        }
+        return UserResponse.from(u);
+    }
+
+    @Operation(summary = "Save language, light/dark/system mode or density", description = "Fields left out stay as they are.")
+    @PutMapping("/preferences")
+    @Transactional
+    public UserResponse updatePreferences(@Valid @RequestBody PreferencesRequest req) {
+        User u = currentUser();
         if (req.locale() != null) {
             u.setLocale(req.locale());
         }

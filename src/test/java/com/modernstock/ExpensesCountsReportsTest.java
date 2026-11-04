@@ -46,9 +46,10 @@ class ExpensesCountsReportsTest extends ApiTest {
         assertThat(profit.dec("/expenses")).isEqualByComparingTo("10.00");
         assertThat(profit.dec("/netProfit")).isEqualByComparingTo("-4.90");
 
-        Res sales = ok(get("/reports/sales?from=" + today + "&to=" + today, shop));
+        Res sales = ok(get("/reports/sales?from=" + today + "&to=" + today + "&by=PRODUCT", shop));
         assertThat(sales.at("/documents").asLong()).isEqualTo(1);
-        assertThat(sales.at("/topProducts/0/name").asText()).isEqualTo("Rice");
+        assertThat(sales.at("/rows/0/label").asText()).isEqualTo("Rice");
+        assertThat(sales.dec("/grossProfit")).isEqualByComparingTo("5.10");
 
         ok(post("/expenses/" + expense.id() + "/void", null, shop));
         assertThat(ok(get("/reports/profit?from=" + today + "&to=" + today, shop)).dec("/expenses")).isEqualByComparingTo("0");

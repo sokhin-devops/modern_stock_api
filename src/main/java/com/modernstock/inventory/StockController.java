@@ -5,11 +5,15 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,12 +24,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.modernstock.business.Branch;
+import com.modernstock.business.BranchRepository;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
+import com.modernstock.business.Warehouse;
+import com.modernstock.business.WarehouseRepository;
 import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductRepository;
 import com.modernstock.catalog.ProductService;
+import com.modernstock.catalog.ReorderLevels;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.Dates;
 import com.modernstock.common.PageResponse;
@@ -47,6 +56,14 @@ public class StockController {
                            BigDecimal qtyOnHand, BigDecimal reorderLevel,
                            @Schema(description = "qty × average cost; only for members who manage products") BigDecimal value,
                            boolean low) {
+    }
+
+    public record BranchQty(Long branchId, BigDecimal qtyOnHand, BigDecimal reorderLevel, boolean low) {
+    }
+
+    public record BranchStockRow(Long productId, String sku, String nameEn, String nameKm, String unitSymbol,
+                                 @Schema(description = "All the branches below added up") BigDecimal qtyOnHand,
+                                 @Schema(description = "One per branch you may use, main branch first") List<BranchQty> branches) {
     }
 
     public record BatchRow(Long id, Long productId, String productName, Long warehouseId, String warehouseName,
@@ -78,6 +95,9 @@ public class StockController {
     private final StockTransferRepository transfers;
     private final BranchScope scope;
     private final BranchService branches;
+    private final ReorderLevels reorderLevels;
+    private final BranchRepository branchRepository;
+    private final WarehouseRepository warehouses;
 
     @Operation(summary = "Stock on hand per product", description = "Base units, summed over the branches you see. q matches name, SKU or barcode.")
     @GetMapping("/levels")
@@ -90,21 +110,72 @@ public class StockController {
         Map<Long, BigDecimal> onHand = productService.onHand(page.getContent().stream().map(Product::getId).toList(),
                 scope.warehouseIds());
         Map<Long, String> symbols = productService.unitSymbols();
-        return PageResponse.of(page, p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), symbols));
+        Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(page.getContent());
+        return PageResponse.of(page, p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols));
     }
 
-    @Operation(summary = "Low stock", description = "Products at or below their reorder level.")
+    @Operation(summary = "Stock of all branches side by side", description = "On hand and the reorder level in each branch you "
+            + "may use, whatever branch is picked in the top bar (FR-4.8). lowOnly keeps products low in at least one branch.")
+    @GetMapping("/by-branch")
+    @PreAuthorize("hasAuthority('stock:view')")
+    @Transactional(readOnly = true)
+    public PageResponse<BranchStockRow> stockByBranch(@RequestParam(required = false) String q,
+                                                      @RequestParam(required = false) Long categoryId,
+                                                      @RequestParam(defaultValue = "false") boolean lowOnly,
+                                                      @ParameterObject @PageableDefault(size = 20, sort = "nameEn") Pageable pageable) {
+        List<Long> branchIds = branchRepository.findAll().stream()
+                .filter(b -> b.isActive() && BusinessContext.canAccessBranch(b.getId()))
+                .sorted(Comparator.comparing((Branch b) -> !b.isMain()).thenComparing(Branch::getId))
+                .map(Branch::getId).toList();
+        Map<Long, Long> branchOf = warehouses.findAll().stream()
+                .filter(w -> branchIds.contains(w.getBranchId()))
+                .collect(Collectors.toMap(Warehouse::getId, Warehouse::getBranchId));
+        Map<Long, String> symbols = productService.unitSymbols();
+        Function<List<Product>, List<BranchStockRow>> rows = list -> {
+            Map<Long, Map<Long, BigDecimal>> levelsOf = reorderLevels.perBranch(list, branchIds);
+            Map<Long, Map<Long, BigDecimal>> qtyOf = new HashMap<>();
+            if (!list.isEmpty()) {
+                for (StockLevel l : levels.findByProductIdIn(list.stream().map(Product::getId).toList())) {
+                    Long branchId = branchOf.get(l.getWarehouseId());
+                    if (branchId != null) {
+                        qtyOf.computeIfAbsent(l.getProductId(), k -> new HashMap<>()).merge(branchId, l.getQtyOnHand(), BigDecimal::add);
+                    }
+                }
+            }
+            return list.stream().map(p -> {
+                List<BranchQty> cells = branchIds.stream().map(id -> {
+                    BigDecimal qty = qtyOf.getOrDefault(p.getId(), Map.of()).getOrDefault(id, BigDecimal.ZERO);
+                    BigDecimal level = levelsOf.get(p.getId()).get(id);
+                    return new BranchQty(id, qty, level, level.signum() > 0 && qty.compareTo(level) <= 0);
+                }).toList();
+                return new BranchStockRow(p.getId(), p.getSku(), p.getNameEn(), p.getNameKm(), symbols.get(p.getBaseUnitId()),
+                        cells.stream().map(BranchQty::qtyOnHand).reduce(BigDecimal.ZERO, BigDecimal::add), cells);
+            }).toList();
+        };
+        if (!lowOnly) {
+            Page<Product> page = products.search(like(q), categoryId, true, pageable);
+            return PageResponse.of(new PageImpl<>(rows.apply(page.getContent()), pageable, page.getTotalElements()));
+        }
+        // Low somewhere: every matching product is checked, then the page is cut here
+        List<BranchStockRow> low = rows.apply(products.search(like(q), categoryId, true, Pageable.unpaged(pageable.getSort())).getContent())
+                .stream().filter(r -> r.branches().stream().anyMatch(BranchQty::low)).toList();
+        int from = (int) Math.min(pageable.getOffset(), low.size());
+        return PageResponse.of(new PageImpl<>(low.subList(from, Math.min(from + pageable.getPageSize(), low.size())), pageable, low.size()));
+    }
+
+    @Operation(summary = "Low stock", description = "Products at or below their reorder level (each branch's own level, summed over the branches you see).")
     @GetMapping("/low")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
     public List<StockRow> lowStock() {
-        List<Product> watched = products.findAll().stream()
-                .filter(p -> p.isActive() && p.getReorderLevel().signum() > 0).toList();
+        List<Product> active = products.findAll().stream().filter(Product::isActive).toList();
+        Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(active);
+        List<Product> watched = active.stream().filter(p -> reorderAt.get(p.getId()).signum() > 0).toList();
         Map<Long, BigDecimal> onHand = productService.onHand(watched.stream().map(Product::getId).toList(),
                 scope.warehouseIds());
         Map<Long, String> symbols = productService.unitSymbols();
         return watched.stream()
-                .map(p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), symbols))
+                .map(p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols))
                 .filter(StockRow::low)
                 .sorted(Comparator.comparing(StockRow::qtyOnHand))
                 .toList();
@@ -180,8 +251,9 @@ public class StockController {
         BigDecimal value = all.stream()
                 .map(p -> onHand.getOrDefault(p.getId(), BigDecimal.ZERO).multiply(p.getAvgCost()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
-        long low = all.stream().filter(p -> p.isActive() && p.getReorderLevel().signum() > 0
-                && onHand.getOrDefault(p.getId(), BigDecimal.ZERO).compareTo(p.getReorderLevel()) <= 0).count();
+        Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(all);
+        long low = all.stream().filter(p -> p.isActive() && reorderAt.get(p.getId()).signum() > 0
+                && onHand.getOrDefault(p.getId(), BigDecimal.ZERO).compareTo(reorderAt.get(p.getId())) <= 0).count();
         LocalDate today = Dates.today();
         List<StockBatch> soon = batches.findExpiring(today.plusDays(30), visible, null);
         long expired = soon.stream().filter(b -> b.getExpiryDate().isBefore(today)).count();
@@ -190,11 +262,11 @@ public class StockController {
         return new StockSummary(value, inTransit, low, soon.size() - expired, expired);
     }
 
-    private StockRow row(Product p, BigDecimal qty, Map<Long, String> symbols) {
+    private StockRow row(Product p, BigDecimal qty, BigDecimal reorderAt, Map<Long, String> symbols) {
         boolean showCost = BusinessContext.has("product:manage");
         return new StockRow(p.getId(), p.getSku(), p.getNameEn(), p.getNameKm(), symbols.get(p.getBaseUnitId()), qty,
-                p.getReorderLevel(), showCost ? qty.multiply(p.getAvgCost()).setScale(2, RoundingMode.HALF_UP) : null,
-                p.getReorderLevel().signum() > 0 && qty.compareTo(p.getReorderLevel()) <= 0);
+                reorderAt, showCost ? qty.multiply(p.getAvgCost()).setScale(2, RoundingMode.HALF_UP) : null,
+                reorderAt.signum() > 0 && qty.compareTo(reorderAt) <= 0);
     }
 
     private static BatchRow batchRow(StockBatch b, Product p, Map<Long, String> labels, LocalDate today) {

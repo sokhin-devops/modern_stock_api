@@ -1,6 +1,7 @@
 package com.modernstock.sale;
 
 import java.util.Collection;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,8 @@ public interface DeliveryRepository extends TenantRepository<Delivery> {
             order by d.id desc
             """)
     Page<Delivery> search(Collection<Long> branchIds, Long customerId, Pageable pageable);
+
+    List<Delivery> findBySalesOrderIdOrderById(Long salesOrderId);
 
     @Override
     default String entityName() {

@@ -6,6 +6,7 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.admin.PlatformSettings;
 import com.modernstock.billing.Plan;
@@ -17,6 +18,7 @@ import com.modernstock.catalog.CategoryRepository;
 import com.modernstock.catalog.Unit;
 import com.modernstock.catalog.UnitRepository;
 import com.modernstock.common.ApiException;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.Dates;
 import com.modernstock.common.Phones;
 import com.modernstock.currency.CurrencyService;
@@ -76,15 +78,17 @@ public class BusinessService {
 
     public record BusinessResponse(Long id, String nameEn, String nameKm, String businessType, String phone,
                                    String email, String address, String province, String vatTin, String themeColor,
-                                   String language, Business.Status status, boolean onboardingCompleted) {
+                                   String language, Business.Status status, boolean onboardingCompleted,
+                                   @Schema(description = "Path of the logo under the API (/public/files/...), or null") String logoUrl) {
         public static BusinessResponse from(Business b) {
             return new BusinessResponse(b.getId(), b.getNameEn(), b.getNameKm(), b.getBusinessType(), b.getPhone(),
                     b.getEmail(), b.getAddress(), b.getProvince(), b.getVatTin(), b.getThemeColor(), b.getLanguage(),
-                    b.getStatus(), b.isOnboardingCompleted());
+                    b.getStatus(), b.isOnboardingCompleted(), FileStorage.url(b.getLogoPath()));
         }
     }
 
     private final BusinessRepository businesses;
+    private final FileStorage files;
     private final BusinessMemberRepository members;
     private final RoleRepository roles;
     private final PlanRepository plans;
@@ -137,6 +141,24 @@ public class BusinessService {
         return BusinessResponse.from(open());
     }
 
+    /** The logo on receipts and the profile (FR-7.1); a new one replaces the old one. */
+    @Transactional
+    public BusinessResponse setLogo(MultipartFile file) {
+        Business b = open();
+        String old = b.getLogoPath();
+        b.setLogoPath(files.saveImage(file, "logos"));
+        files.delete(old);
+        return BusinessResponse.from(b);
+    }
+
+    @Transactional
+    public BusinessResponse removeLogo() {
+        Business b = open();
+        files.delete(b.getLogoPath());
+        b.setLogoPath(null);
+        return BusinessResponse.from(b);
+    }
+
     @Transactional
     public BusinessResponse update(UpdateBusinessRequest req) {
         Business b = open();
@@ -167,7 +189,8 @@ public class BusinessService {
         SettingsService.BusinessSettings defaults = settings.get();
         settings.update(new SettingsService.BusinessSettings(req.vatEnabled(), defaults.vatRate(),
                 req.rielRounding() == null ? defaults.rielRounding() : req.rielRounding(),
-                defaults.maxDiscountPercent(), defaults.allowNegativeStock(), defaults.receiptFooter()));
+                defaults.maxDiscountPercent(), defaults.allowNegativeStock(), defaults.receiptFooter(), defaults.receiptHeader(),
+                defaults.receiptPaper(), defaults.receiptShowVatTin(), defaults.khqrEnabled(), defaults.bankEnabled(), null));
         currency.set(Dates.today(), req.usdToKhr());
 
         unit("Piece", "ដុំ", "pcs");

@@ -29,7 +29,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Sales and money reports (PLAIN.md 14), read straight from the documents. Sales are paid receipts plus invoices
- * (pay later); line revenue is before VAT and the whole-sale discount, cost is the average cost at the moment of sale.
+ * (pay later) minus returns; line revenue is before VAT and the whole-sale discount, cost is the average cost at the
+ * moment of sale (returned good items give their cost back; damaged ones stay a cost).
  * A cashier's sales reports cover only their own sales; profit, cost and debts are for Owners and Managers.
  */
 @Service
@@ -99,6 +100,14 @@ public class ReportService {
              where i.business_id = :business and i.status <> 'VOID' and i.branch_id in (:branches)
                and (cast(:cashier as bigint) is null or i.created_by = :cashier)
                and i.invoice_date between :from and :to
+            union all
+            select (sr.returned_at at time zone 'Asia/Phnom_Penh')::date, sr.branch_id, sr.created_by, 'S' || sr.id, ri.product_id,
+                   -ri.base_qty, -(ri.qty * ri.unit_net),
+                   case when ri.condition = 'GOOD' then -(ri.base_qty * ri.cost_at_sale) else 0 end
+              from sales_return_items ri join sales_returns sr on sr.id = ri.return_id
+             where sr.business_id = :business and sr.status = 'POSTED' and sr.branch_id in (:branches)
+               and (cast(:cashier as bigint) is null or sr.created_by = :cashier)
+               and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date between :from and :to
             """;
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
@@ -140,10 +149,10 @@ public class ReportService {
                       from (%s) l left join users u on u.id = l.user_id
                      group by l.user_id, u.full_name order by sales desc""";
         };
-        String sums = "count(distinct l.doc) as documents, sum(l.revenue) as sales, sum(l.cost) as cost";
+        String sums = "count(distinct l.doc) filter (where l.doc not like 'S%') as documents, sum(l.revenue) as sales, sum(l.cost) as cost";
         List<SalesRow> rows = jdbc.query(group.formatted(sums, LINES), p, (rs, n) -> salesRow(rs, money));
         Map<String, Object> totals = jdbc.queryForMap(
-                "select count(distinct l.doc) as documents, coalesce(sum(l.revenue), 0) as sales, coalesce(sum(l.cost), 0) as cost from (%s) l"
+                "select count(distinct l.doc) filter (where l.doc not like 'S%%') as documents, coalesce(sum(l.revenue), 0) as sales, coalesce(sum(l.cost), 0) as cost from (%s) l"
                         .formatted(LINES), p);
         BigDecimal vat = jdbc.queryForObject("""
                 select coalesce((select sum(vat) from sales_receipts r where r.business_id = :business and r.status = 'POSTED'

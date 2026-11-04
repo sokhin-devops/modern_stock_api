@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,6 +21,7 @@ import com.modernstock.catalog.ProductRepository;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
 import com.modernstock.common.Dates;
+import com.modernstock.notification.TelegramAlerts;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,6 +51,7 @@ public class StockService {
     private final ProductRepository products;
     private final SettingsService settings;
     private final JdbcTemplate jdbc;
+    private final ApplicationEventPublisher events;
 
     /**
      * Stock in. Purchases and opening stock update the weighted average cost; transfers, returns and
@@ -98,6 +101,7 @@ public class StockService {
         if (level.getQtyOnHand().compareTo(qty) < 0 && !allowNegative) {
             throw insufficient(product, level.getQtyOnHand());
         }
+        boolean hadStock = level.getQtyOnHand().signum() > 0;
         BigDecimal cost = product.getAvgCost();
         LocalDate today = Dates.today();
         BigDecimal remaining = qty;
@@ -125,6 +129,11 @@ public class StockService {
             write(product.getId(), warehouseId, null, type, remaining.negate(), cost, level.getQtyOnHand(), ref);
             picks.add(new Pick(null, null, null, remaining, cost));
         }
+        // Selling the last units is worth an immediate Telegram alert (FR-5.5)
+        if (hadStock && level.getQtyOnHand().signum() <= 0
+                && (type == StockMovement.Type.SALES_RECEIPT || type == StockMovement.Type.DELIVERY)) {
+            events.publishEvent(new TelegramAlerts.StockOut(BusinessContext.businessId(), product.getId(), warehouseId));
+        }
         return picks;
     }
 
@@ -145,6 +154,33 @@ public class StockService {
         write(product.getId(), b.getWarehouseId(), b.getId(), type, qty.negate(), product.getAvgCost(),
                 level.getQtyOnHand(), ref);
         return new Pick(b.getId(), b.getBatchNo(), b.getExpiryDate(), qty, product.getAvgCost());
+    }
+
+    /**
+     * Stock back out of the batch a document brought it in with (a purchase return from its goods receipt); what that
+     * batch no longer holds comes from the other batches, earliest expiry first. Expired goods may go.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<Pick> issueReceived(Product product, Ref received, Long warehouseId, String batchNo, LocalDate expiryDate,
+                                    BigDecimal qty, StockMovement.Type type, Ref ref) {
+        requirePositive(qty);
+        StockBatch own = movements.findByReferenceTypeAndReferenceIdOrderByIdAsc(received.type(), received.id()).stream()
+                .filter(m -> m.getProductId().equals(product.getId()) && m.getBatchId() != null)
+                .map(m -> batches.get(m.getBatchId()))
+                .filter(b -> b.getWarehouseId().equals(warehouseId) && Objects.equals(b.getBatchNo(), batchNo)
+                        && Objects.equals(b.getExpiryDate(), expiryDate))
+                .findFirst().orElse(null);
+        List<Pick> picks = new ArrayList<>();
+        BigDecimal remaining = qty;
+        if (own != null && own.getQtyOnHand().signum() > 0) {
+            BigDecimal take = own.getQtyOnHand().min(remaining);
+            picks.add(issueFromBatch(product, own.getId(), take, type, ref));
+            remaining = remaining.subtract(take);
+        }
+        if (remaining.signum() > 0) {
+            picks.addAll(issue(product, warehouseId, remaining, type, ref, true));
+        }
+        return picks;
     }
 
     /**

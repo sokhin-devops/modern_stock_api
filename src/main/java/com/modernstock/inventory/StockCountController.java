@@ -19,6 +19,7 @@ import com.modernstock.common.PageResponse;
 import com.modernstock.inventory.StockCountService.CountRequest;
 import com.modernstock.inventory.StockCountService.CountResponse;
 import com.modernstock.inventory.StockCountService.CountedRequest;
+import com.modernstock.inventory.StockCountService.RecountRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -46,7 +47,9 @@ public class StockCountController {
         return counts.get(id);
     }
 
-    @Operation(summary = "Start a count", description = "Takes the system quantity of every active product in the warehouse (or category).")
+    @Operation(summary = "Start a count", description = "Takes the system quantity of each product in one warehouse, or every warehouse "
+            + "of the branch: all active products, one category, or the products chosen (one shelf). blind hides the system quantity "
+            + "from counters until the count is submitted.")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('count:manage')")
@@ -61,9 +64,33 @@ public class StockCountController {
         return counts.saveCounted(id, req);
     }
 
-    @Operation(summary = "Post a count", description = "Adds or removes each difference as a stock count movement.")
-    @PostMapping("/{id}/post")
+    @Operation(summary = "Count moved products again", description = "Takes the system quantity again for lines whose stock moved "
+            + "after the snapshot (or the lines given) and clears what was counted for them.")
+    @PostMapping("/{id}/recount")
     @PreAuthorize("hasAuthority('count:manage')")
+    public CountResponse recountStockCount(@PathVariable Long id, @RequestBody(required = false) RecountRequest req) {
+        return counts.recount(id, req);
+    }
+
+    @Operation(summary = "Submit a count", description = "The counter is done; Owner or Manager posts it. 422 RECOUNT_NEEDED while a "
+            + "counted product moved after its snapshot.")
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasAuthority('count:manage')")
+    public CountResponse submitStockCount(@PathVariable Long id) {
+        return counts.submit(id);
+    }
+
+    @Operation(summary = "Send a count back", description = "A submitted count goes back to the counter.")
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasAuthority('adjustment:approve')")
+    public CountResponse reopenStockCount(@PathVariable Long id) {
+        return counts.reopen(id);
+    }
+
+    @Operation(summary = "Post a count", description = "Owner or Manager: adds or removes each difference as a stock count movement. "
+            + "A blind count is submitted first.")
+    @PostMapping("/{id}/post")
+    @PreAuthorize("hasAuthority('adjustment:approve')")
     public CountResponse postStockCount(@PathVariable Long id) {
         return counts.post(id);
     }

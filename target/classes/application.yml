@@ -7,6 +7,11 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/modern_stock}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
+  servlet:
+    multipart:
+      # Pictures are at most 2 MB (FileStorage); a little room for the form around them.
+      max-file-size: 3MB
+      max-request-size: 3MB
   jpa:
     open-in-view: false
     hibernate:
@@ -20,6 +25,8 @@ spring:
   messages:
     basename: i18n/messages
     fallback-to-system-locale: false
+    # every message goes through MessageFormat, so ''-escaped apostrophes print right with or without arguments
+    always-use-message-format: true
   jackson:
     time-zone: UTC
 
@@ -62,5 +69,13 @@ app:
   billing:
     mode: demo
   telegram:
-    # From @BotFather. Empty: businesses can save their chat ID, but nothing is sent.
+    # From @BotFather. Empty: Telegram is off (businesses can't connect, nothing is sent).
     bot-token: ${TELEGRAM_BOT_TOKEN:}
+    # The bot's @username without @, for the t.me links (asked from Telegram when empty).
+    bot-username: ${TELEGRAM_BOT_USERNAME:}
+    # Public HTTPS URL of /public/telegram/webhook; set = registered with Telegram at start.
+    webhook-url: ${TELEGRAM_WEBHOOK_URL:}
+    # Telegram sends it back in X-Telegram-Bot-Api-Secret-Token; webhook calls without it are refused.
+    webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:}
+    # Development without a public URL: ask Telegram for new messages every 3 seconds instead of the webhook.
+    polling: ${TELEGRAM_POLLING:false}

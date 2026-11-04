@@ -3,6 +3,7 @@ package com.modernstock.business;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.modernstock.common.ApiException;
@@ -22,6 +23,8 @@ public final class BusinessContext {
     }
 
     private static final ThreadLocal<Context> CURRENT = new ThreadLocal<>();
+    /** Whether a branch is read-only (set by ReadOnlyBranches at start; none are before then). */
+    private static volatile Predicate<Long> readOnly = id -> false;
 
     private BusinessContext() {
     }
@@ -68,7 +71,11 @@ public final class BusinessContext {
         return c.selectedBranchId() != null ? c.selectedBranchId() : c.memberBranchId();
     }
 
-    /** Branch for a new document: the one in the request, else the selected branch. "All branches" needs an explicit one. */
+    /**
+     * Branch for a new document: the one in the request, else the selected branch. "All branches" needs an explicit one.
+     * A read-only branch (above the plan's limit after a plan ended) takes no new work: 422 BRANCH_READ_ONLY. Work
+     * already started there, such as receiving a transfer in transit, goes through requireBranch and still works.
+     */
     public static Long branchForWrite(Long requested) {
         Context c = require();
         Long branchId = requested != null ? requested : c.selectedBranchId();
@@ -76,7 +83,14 @@ public final class BusinessContext {
             throw ApiException.badRequest("BRANCH_REQUIRED");
         }
         requireBranch(branchId);
+        if (readOnly.test(branchId)) {
+            throw ApiException.rule("BRANCH_READ_ONLY");
+        }
         return branchId;
+    }
+
+    static void readOnlyCheck(Predicate<Long> check) {
+        readOnly = check;
     }
 
     /** Runs code inside a business, for jobs and demo data that have no HTTP request. */

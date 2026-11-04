@@ -39,4 +39,9 @@ public class Subscription extends BaseEntity {
     @Column(nullable = false)
     private boolean cancelAtPeriodEnd;
     private Long pendingPlanId;
+    /** The Owner chose a paid plan; during the trial it is billed when the trial ends. */
+    @Column(nullable = false)
+    private boolean subscribed;
+    /** When the unpaid renewal started; after 7 days the plan expires to Free. */
+    private Instant pastDueSince;
 }

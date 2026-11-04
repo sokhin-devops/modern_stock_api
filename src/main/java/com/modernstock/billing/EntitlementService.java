@@ -54,14 +54,19 @@ public class EntitlementService {
     }
 
     public boolean hasFeature(String key) {
-        Integer value = effectivePlan(BusinessContext.require().businessId()).limit(key);
+        return hasFeature(BusinessContext.require().businessId(), key);
+    }
+
+    /** For jobs that run outside a request (the daily Telegram summary). */
+    public boolean hasFeature(Long businessId, String key) {
+        Integer value = effectivePlan(businessId).limit(key);
         return value == null || value > 0;
     }
 
     /** Pending invitations count as members, so an Owner can't invite past the limit. */
     public long usage(Long businessId, String key) {
         String sql = switch (key) {
-            case BRANCHES -> "SELECT count(*) FROM branches WHERE business_id = ? AND is_active";
+            case BRANCHES -> "SELECT count(*) FROM branches WHERE business_id = ? AND is_active AND NOT read_only";
             case MEMBERS -> """
                     SELECT (SELECT count(*) FROM business_members WHERE business_id = ? AND status = 'ACTIVE')
                          + (SELECT count(*) FROM invitations WHERE business_id = ? AND status = 'PENDING' AND expires_at > now())

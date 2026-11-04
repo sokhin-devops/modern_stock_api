@@ -3,7 +3,10 @@ package com.modernstock.report;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -12,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
+import com.modernstock.catalog.ReorderLevels;
 import com.modernstock.common.Dates;
 import lombok.RequiredArgsConstructor;
 
@@ -66,8 +70,25 @@ public class StockReportService {
     }
 
     /** Products with their base unit, biggest packaging unit, and stock in the visible warehouses. */
+    public record LossRow(String reason, Long productId, String name, String nameKm, String unitSymbol, BigDecimal qty,
+                          BigDecimal value) {
+    }
+
+    public record LossReason(String reason, long products, BigDecimal value) {
+    }
+
+    public record LossReport(LocalDate from, LocalDate to, BigDecimal value, List<LossReason> reasons, List<LossRow> rows) {
+    }
+
+    public record SlowRow(Long productId, String sku, String name, String nameKm, String category, String unitSymbol, Pack pack,
+                          BigDecimal qty, BigDecimal value, LocalDate lastSold) {
+    }
+
+    public record SlowReport(int days, long products, BigDecimal value, List<SlowRow> rows) {
+    }
+
     private static final String ON_HAND = """
-            select p.id, p.sku, p.name_en, p.name_km, p.avg_cost, p.reorder_level, p.lead_time_days, c.name_en as category,
+            select p.id, p.sku, p.name_en, p.name_km, p.avg_cost, %s as reorder_level, p.lead_time_days, c.name_en as category,
                    u.symbol, pk.symbol as pack_symbol, pk.factor as pack_factor,
                    coalesce((select sum(l.qty_on_hand) from stock_levels l
                               where l.product_id = p.id and l.warehouse_id in (:warehouses)), 0) as qty
@@ -77,7 +98,7 @@ public class StockReportService {
               left join lateral (select pu_u.symbol, pu.factor from product_units pu join units pu_u on pu_u.id = pu.unit_id
                                   where pu.product_id = p.id and pu.factor > 1 order by pu.factor desc limit 1) pk on true
              where p.business_id = :business and p.is_active
-            """;
+            """.formatted(ReorderLevels.sql("b.id in (:branches)"));
 
     private final NamedParameterJdbcTemplate jdbc;
     private final BranchScope scope;
@@ -119,14 +140,13 @@ public class StockReportService {
         boolean cost = ReportScope.cost();
         LocalDate today = Dates.today();
         MapSqlParameterSource p = params()
-                .addValue("branches", scope.branchIds())
                 .addValue("from", today.minusDays(SALES_DAYS - 1L))
                 .addValue("to", today)
                 .addValue("cashier", null, java.sql.Types.BIGINT);
         List<ReorderRow> rows = jdbc.query("""
-                select s.*, coalesce(sold.qty, 0) as sold from (%s and p.reorder_level > 0) s
+                select s.*, coalesce(sold.qty, 0) as sold from (%s) s
                   left join (select product_id, sum(base_qty) as qty from (%s) l group by product_id) sold on sold.product_id = s.id
-                 where s.qty <= s.reorder_level
+                 where s.reorder_level > 0 and s.qty <= s.reorder_level
                  order by s.qty / nullif(s.reorder_level, 0), s.name_en
                 """.formatted(ON_HAND, ReportService.LINES), p, (rs, n) -> {
             BigDecimal onHand = rs.getBigDecimal("qty");
@@ -134,7 +154,7 @@ public class StockReportService {
             int lead = rs.getInt("lead_time_days");
             BigDecimal perDay = rs.getBigDecimal("sold").divide(BigDecimal.valueOf(SALES_DAYS), 3, RoundingMode.HALF_UP);
             BigDecimal byDemand = perDay.multiply(BigDecimal.valueOf(lead + COVER_DAYS)).add(level).subtract(onHand);
-            BigDecimal byLevel = level.multiply(BigDecimal.TWO).subtract(onHand);
+            BigDecimal byLevel = level.multiply(BigDecimal.valueOf(2)).subtract(onHand);
             BigDecimal suggested = byDemand.max(byLevel).max(BigDecimal.ZERO).setScale(0, RoundingMode.CEILING);
             BigDecimal avg = rs.getBigDecimal("avg_cost");
             return new ReorderRow(rs.getLong("id"), rs.getString("sku"), rs.getString("name_en"), rs.getString("name_km"),
@@ -180,13 +200,13 @@ public class StockReportService {
     public CountReport countDifferences(LocalDate from, LocalDate to) {
         ReportScope.requireStock();
         boolean cost = ReportScope.cost();
-        MapSqlParameterSource p = params().addValue("branches", scope.branchIds()).addValue("from", from).addValue("to", to);
+        MapSqlParameterSource p = params().addValue("from", from).addValue("to", to);
         List<CountRow> rows = jdbc.query("""
                 select c.id, c.number, (c.posted_at at time zone 'Asia/Phnom_Penh')::date as posted_on, w.name_en as warehouse,
                        i.product_id, p.name_en, p.name_km, u.symbol, i.system_qty, i.counted_qty, i.unit_cost
                   from stock_counts c join stock_count_items i on i.count_id = c.id
                   join products p on p.id = i.product_id join units u on u.id = p.base_unit_id
-                  join warehouses w on w.id = c.warehouse_id
+                  join warehouses w on w.id = i.warehouse_id
                  where c.business_id = :business and c.status = 'POSTED' and c.branch_id in (:branches)
                    and (c.posted_at at time zone 'Asia/Phnom_Penh')::date between :from and :to
                    and i.counted_qty is not null and i.counted_qty <> i.system_qty
@@ -204,10 +224,82 @@ public class StockReportService {
         return new CountReport(from, to, counts, gain, loss, rows);
     }
 
+    /**
+     * Stock lost in the period, at its cost then: adjustments that took stock out (by their reason), counts that found
+     * less than the system had, and damaged goods customers brought back.
+     */
+    @Transactional(readOnly = true)
+    public LossReport losses(LocalDate from, LocalDate to) {
+        ReportScope.requireStock();
+        boolean cost = ReportScope.cost();
+        MapSqlParameterSource p = params().addValue("from", from).addValue("to", to);
+        List<LossRow> rows = jdbc.query("""
+                select l.reason, l.product_id, p.name_en, p.name_km, u.symbol, sum(l.qty) as qty, sum(l.value) as value
+                  from (select a.reason, i.product_id, -i.qty_change as qty, -i.qty_change * i.unit_cost as value
+                          from stock_adjustments a join stock_adjustment_items i on i.adjustment_id = a.id
+                         where a.business_id = :business and a.status = 'POSTED' and a.kind = 'ADJUSTMENT' and i.qty_change < 0
+                           and a.branch_id in (:branches) and (a.posted_at at time zone 'Asia/Phnom_Penh')::date between :from and :to
+                        union all
+                        select 'COUNT', i.product_id, i.system_qty - i.counted_qty, (i.system_qty - i.counted_qty) * i.unit_cost
+                          from stock_counts c join stock_count_items i on i.count_id = c.id
+                         where c.business_id = :business and c.status = 'POSTED' and i.counted_qty < i.system_qty
+                           and c.branch_id in (:branches) and (c.posted_at at time zone 'Asia/Phnom_Penh')::date between :from and :to
+                        union all
+                        select 'DAMAGED_RETURN', ri.product_id, ri.base_qty, ri.base_qty * ri.cost_at_sale
+                          from sales_returns sr join sales_return_items ri on ri.return_id = sr.id
+                         where sr.business_id = :business and sr.status = 'POSTED' and ri.condition = 'DAMAGED'
+                           and sr.branch_id in (:branches) and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date between :from and :to) l
+                  join products p on p.id = l.product_id join units u on u.id = p.base_unit_id
+                 group by l.reason, l.product_id, p.name_en, p.name_km, u.symbol
+                 order by sum(l.value) desc, p.name_en
+                """, p, (rs, n) -> new LossRow(rs.getString("reason"), rs.getLong("product_id"), rs.getString("name_en"),
+                rs.getString("name_km"), rs.getString("symbol"), rs.getBigDecimal("qty"), cost ? money(rs.getBigDecimal("value")) : null));
+        Map<String, List<LossRow>> byReason = new LinkedHashMap<>();
+        rows.forEach(r -> byReason.computeIfAbsent(r.reason(), k -> new ArrayList<>()).add(r));
+        List<LossReason> reasons = byReason.entrySet().stream()
+                .map(e -> new LossReason(e.getKey(), e.getValue().size(),
+                        cost ? e.getValue().stream().map(LossRow::value).reduce(BigDecimal.ZERO, BigDecimal::add) : null))
+                .toList();
+        BigDecimal value = cost ? rows.stream().map(LossRow::value).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
+        return new LossReport(from, to, value, reasons, rows);
+    }
+
+    /** Products in stock that have not sold for `days` days (or never): money sitting on the shelf. */
+    @Transactional(readOnly = true)
+    public SlowReport slowMoving(int days) {
+        ReportScope.requireStock();
+        boolean cost = ReportScope.cost();
+        MapSqlParameterSource p = params()
+                .addValue("since", Dates.today().minusDays(days));
+        List<SlowRow> rows = jdbc.query("""
+                select s.*, last.sold as last_sold from (%s) s
+                  left join lateral (
+                    select max(d) as sold from (
+                      select (r.sold_at at time zone 'Asia/Phnom_Penh')::date as d from sale_items si
+                        join sales_receipts r on r.id = si.sales_receipt_id
+                       where si.product_id = s.id and r.status = 'POSTED' and r.branch_id in (:branches)
+                      union all
+                      select (d.delivered_at at time zone 'Asia/Phnom_Penh')::date from sale_items si
+                        join deliveries d on d.id = si.delivery_id
+                       where si.product_id = s.id and d.status = 'POSTED' and d.branch_id in (:branches)) x) last on true
+                 where s.qty > 0 and (last.sold is null or last.sold < :since)
+                 order by last.sold nulls first, s.name_en
+                """.formatted(ON_HAND), p, (rs, n) -> {
+            BigDecimal qty = rs.getBigDecimal("qty");
+            java.sql.Date last = rs.getDate("last_sold");
+            return new SlowRow(rs.getLong("id"), rs.getString("sku"), rs.getString("name_en"), rs.getString("name_km"),
+                    rs.getString("category"), rs.getString("symbol"), pack(rs.getString("pack_symbol"), rs.getBigDecimal("pack_factor")),
+                    qty, cost ? money(qty.multiply(rs.getBigDecimal("avg_cost"))) : null, last == null ? null : last.toLocalDate());
+        });
+        BigDecimal value = cost ? rows.stream().map(SlowRow::value).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
+        return new SlowReport(days, rows.size(), value, rows);
+    }
+
     private MapSqlParameterSource params() {
         return new MapSqlParameterSource()
                 .addValue("business", BusinessContext.businessId())
-                .addValue("warehouses", scope.warehouseIds());
+                .addValue("warehouses", scope.warehouseIds())
+                .addValue("branches", scope.branchIds());
     }
 
     private static Pack pack(String symbol, BigDecimal factor) {

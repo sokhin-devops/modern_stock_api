@@ -1,0 +1,106 @@
+package com.modernstock.purchase;
+
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.modernstock.common.PageResponse;
+import com.modernstock.purchase.PurchaseReturnService.PurchaseReturnRequest;
+import com.modernstock.purchase.PurchaseReturnService.PurchaseReturnResponse;
+import com.modernstock.purchase.PurchaseReturnService.PurchaseReturnable;
+import com.modernstock.purchase.PurchaseReturnService.SupplierCreditApplyRequest;
+import com.modernstock.purchase.PurchaseReturnService.SupplierCreditRefundRequest;
+import com.modernstock.purchase.PurchaseReturnService.SupplierCreditRequest;
+import com.modernstock.purchase.PurchaseReturnService.SupplierCreditResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Purchase returns and supplier credits (FR-2.7, FR-2.8). They change what the business owes, so they are for the people
+ * who manage bills and supplier payments: Owners and Managers (bill:manage).
+ */
+@Tag(name = "Purchase returns and supplier credits")
+@RestController
+@RequiredArgsConstructor
+public class PurchaseReturnController {
+
+    private final PurchaseReturnService returns;
+
+    @Operation(summary = "What can still be sent back from a goods receipt")
+    @GetMapping("/goods-receipts/{id}/returnable")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnable returnable(@PathVariable Long id) {
+        return returns.returnable(id);
+    }
+
+    @Operation(summary = "Send goods back to the supplier",
+            description = "From a goods receipt: the goods leave stock from the batch they came in with, expired ones too. A "
+                    + "supplier credit is made at the received price: used on the receipt's bill first, then refunded by the "
+                    + "supplier (refund) or kept for later bills. 422 RETURN_TOO_MANY when more than was received and not yet "
+                    + "returned.")
+    @PostMapping("/purchase-returns")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnResponse create(@Valid @RequestBody PurchaseReturnRequest req) {
+        return returns.create(req);
+    }
+
+    @GetMapping("/purchase-returns")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PageResponse<PurchaseReturnResponse> list(@RequestParam(required = false) Long supplierId,
+                                                     @ParameterObject Pageable pageable) {
+        return returns.list(supplierId, pageable);
+    }
+
+    @GetMapping("/purchase-returns/{id}")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnResponse get(@PathVariable Long id) {
+        return returns.get(id);
+    }
+
+    @Operation(summary = "A supplier credit by hand", description = "For a price correction; used on bills or refunded later.")
+    @PostMapping("/supplier-credits")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public SupplierCreditResponse createCredit(@Valid @RequestBody SupplierCreditRequest req) {
+        return returns.createCredit(req);
+    }
+
+    @GetMapping("/supplier-credits")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PageResponse<SupplierCreditResponse> credits(@RequestParam(required = false) Long supplierId,
+                                                        @RequestParam(required = false) SupplierCredit.Status status,
+                                                        @ParameterObject Pageable pageable) {
+        return returns.credits(supplierId, status, pageable);
+    }
+
+    @GetMapping("/supplier-credits/{id}")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public SupplierCreditResponse credit(@PathVariable Long id) {
+        return returns.credit(id);
+    }
+
+    @Operation(summary = "Use a supplier credit on a bill of the same supplier")
+    @PostMapping("/supplier-credits/{id}/apply")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public SupplierCreditResponse applyCredit(@PathVariable Long id, @Valid @RequestBody SupplierCreditApplyRequest req) {
+        return returns.applyCredit(id, req);
+    }
+
+    @Operation(summary = "The supplier pays the credit back")
+    @PostMapping("/supplier-credits/{id}/refund")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public SupplierCreditResponse refundCredit(@PathVariable Long id, @Valid @RequestBody SupplierCreditRefundRequest req) {
+        return returns.refundCredit(id, req);
+    }
+}

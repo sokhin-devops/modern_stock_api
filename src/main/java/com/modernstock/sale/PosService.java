@@ -7,9 +7,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,15 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
-import com.modernstock.business.SettingsService;
 import com.modernstock.business.Warehouse;
 import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
 import com.modernstock.common.Dates;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
+import com.modernstock.common.Messages;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.inventory.StockMovement;
@@ -33,12 +37,12 @@ import com.modernstock.inventory.StockService;
 import com.modernstock.money.Allocation;
 import com.modernstock.money.AllocationRepository;
 import com.modernstock.money.AllocationRequest;
-import com.modernstock.money.BalanceService;
 import com.modernstock.money.Payment;
 import com.modernstock.money.PaymentRepository;
 import com.modernstock.money.PaymentResponse;
-import com.modernstock.money.PaymentService;
 import com.modernstock.money.PaymentService.PaymentLine;
+import com.modernstock.money.PaymentService;
+import com.modernstock.notification.TelegramAlerts;
 import com.modernstock.partner.Customer;
 import com.modernstock.partner.CustomerRepository;
 
@@ -124,13 +128,6 @@ public class PosService {
                                         @Size(max = 500) String note) {
     }
 
-    private record PricedLine(CartItem item, Product product, Long unitId, BigDecimal baseQty, BigDecimal price,
-                              BigDecimal gross, BigDecimal discount) {
-        BigDecimal net() {
-            return gross.subtract(discount);
-        }
-    }
-
     private final SalesReceiptRepository receipts;
     private final DeliveryRepository deliveries;
     private final InvoiceRepository invoices;
@@ -142,12 +139,14 @@ public class PosService {
     private final StockService stock;
     private final PaymentService payments;
     private final CurrencyService currency;
-    private final SettingsService settings;
-    private final BalanceService balances;
     private final CashShiftService cashShifts;
     private final DocumentNumberService numbers;
     private final BranchService branches;
     private final BranchScope scope;
+    private final Messages messages;
+    private final SalePricing pricing;
+    private final SaleDocuments documents;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public CheckoutResponse checkout(CheckoutRequest req) {
@@ -155,47 +154,18 @@ public class PosService {
         CurrencyService.Rate rate = currency.current();
         List<String> warnings = new ArrayList<>();
         if (rate.stale()) {
-            warnings.add("Today's exchange rate is missing; the rate of " + rate.rateDate() + " was used.");
+            warnings.add(messages.get("RATE_STALE", rate.rateDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))));
         }
-        SettingsService.BusinessSettings s = settings.get();
         Warehouse warehouse = branches.salesWarehouse(branchId);
         Customer customer = req.customerId() == null ? null : customers.get(req.customerId());
 
-        // 1. Prices: branch price, else the default; cashiers can't change prices, only give discounts
-        List<PricedLine> lines = new ArrayList<>();
-        for (CartItem item : req.items()) {
-            Product p = products.active(item.productId());
-            Long unitId = item.unitId() == null ? p.getBaseUnitId() : item.unitId();
-            BigDecimal price = products.priceFor(p, unitId, branchId);
-            BigDecimal gross = price.multiply(item.qty()).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal discount = money(item.discount());
-            if (discount.compareTo(gross) > 0) {
-                throw ApiException.badRequest("DISCOUNT_TOO_BIG");
-            }
-            lines.add(new PricedLine(item, p, unitId, products.toBaseQty(p, unitId, item.qty()), price, gross, discount));
-        }
-
-        // 2. Totals, discount limit and VAT
-        BigDecimal subtotal = sum(lines.stream().map(PricedLine::gross).toList());
-        BigDecimal lineDiscounts = sum(lines.stream().map(PricedLine::discount).toList());
-        BigDecimal docDiscount = money(req.discount());
-        BigDecimal netLines = subtotal.subtract(lineDiscounts);
-        if (docDiscount.compareTo(netLines) > 0) {
-            throw ApiException.badRequest("DISCOUNT_TOO_BIG");
-        }
-        BigDecimal totalDiscount = lineDiscounts.add(docDiscount);
-        BigDecimal maxDiscount = subtotal.multiply(s.maxDiscountPercent()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        if (totalDiscount.compareTo(maxDiscount) > 0 && !BusinessContext.has("sale:override")) {
-            throw ApiException.rule("DISCOUNT_OVER_LIMIT");
-        }
-        BigDecimal vat = BigDecimal.ZERO;
-        if (s.vatEnabled() && netLines.signum() > 0) {
-            BigDecimal taxable = sum(lines.stream().filter(l -> !l.product().isVatExempt()).map(PricedLine::net).toList());
-            BigDecimal taxableAfterDiscount = taxable.multiply(netLines.subtract(docDiscount))
-                    .divide(netLines, 4, RoundingMode.HALF_UP);
-            vat = taxableAfterDiscount.multiply(s.vatRate()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        }
-        BigDecimal total = netLines.subtract(docDiscount).add(vat);
+        // 1–2. Prices (cashiers can't change prices, only give discounts), the discount limit and VAT
+        SalePricing.Priced priced = pricing.price(branchId, req.items().stream()
+                .map(i -> new SalePricing.Line(i.productId(), i.unitId(), i.qty(), i.discount())).toList(), req.discount(), true);
+        BigDecimal subtotal = priced.subtotal();
+        BigDecimal totalDiscount = priced.discount();
+        BigDecimal vat = priced.vat();
+        BigDecimal total = priced.total();
         BigDecimal totalKhr = currency.toKhr(total, rate.usdToKhr());
 
         // 3. Money handed over, compared in riel (PLAIN.md 11.6 example: ៛51,000 for ៛50,600 → ៛400 change)
@@ -239,60 +209,17 @@ public class PosService {
             ref = new StockService.Ref(RECEIPT_REF, receipt.getId());
         } else {
             // Pay later needs a named customer with a phone; the credit limit is checked (PLAIN.md 11.8)
-            if (customer == null || customer.getPhone() == null || customer.getPhone().isBlank()) {
-                throw ApiException.rule("CUSTOMER_REQUIRED_FOR_CREDIT");
-            }
-            BigDecimal due = total.subtract(paidUsd).max(BigDecimal.ZERO);
-            if (customer.getCreditLimit().signum() > 0
-                    && balances.customer(customer.getId()).add(due).compareTo(customer.getCreditLimit()) > 0
-                    && !BusinessContext.has("sale:override")) {
-                throw ApiException.rule("CREDIT_LIMIT_EXCEEDED", customer.getCreditLimit().toPlainString());
-            }
-            delivery = new Delivery();
-            delivery.setNumber(numbers.next(DocType.DO));
-            delivery.setBranchId(branchId);
-            delivery.setWarehouseId(warehouse.getId());
-            delivery.setCustomerId(customer.getId());
-            delivery.setDeliveredAt(now);
-            delivery.setStatus(Delivery.Status.POSTED);
-            delivery.setPostedAt(now);
-            delivery.setNote(req.note());
-            deliveries.save(delivery);
-
-            invoice = new Invoice();
-            invoice.setNumber(numbers.next(DocType.INV));
-            invoice.setBranchId(branchId);
-            invoice.setDeliveryId(delivery.getId());
-            invoice.setCustomerId(customer.getId());
-            invoice.setInvoiceDate(Dates.today());
-            invoice.setDueDate(Dates.today().plusDays(customer.getPaymentTermsDays()));
-            invoice.setExchangeRate(rate.usdToKhr());
-            invoice.setSubtotal(subtotal);
-            invoice.setDiscount(totalDiscount);
-            invoice.setVat(vat);
-            invoice.setTotal(total);
-            invoice.setTotalKhr(totalKhr);
-            invoice.setStatus(Invoice.Status.UNPAID);
-            invoice.setNote(req.note());
-            invoices.save(invoice);
+            documents.checkCredit(customer, total.subtract(paidUsd).max(BigDecimal.ZERO));
+            delivery = documents.newDelivery(branchId, warehouse.getId(), customer.getId(), null, req.note());
+            invoice = documents.newInvoice(delivery, customer, rate.usdToKhr(), subtotal, totalDiscount, vat, total, req.note());
             ref = new StockService.Ref(DELIVERY_REF, delivery.getId());
         }
 
         // 4. Stock: rows locked in product ID order so two cashiers never deadlock; FEFO, expired batches skipped
         StockMovement.Type type = paidInFull ? StockMovement.Type.SALES_RECEIPT : StockMovement.Type.DELIVERY;
-        for (PricedLine line : lines.stream().sorted(Comparator.comparing(l -> l.product().getId())).toList()) {
-            stock.issue(line.product(), warehouse.getId(), line.baseQty(), type, ref, false);
-            SaleItem item = new SaleItem();
-            item.setSalesReceiptId(receipt == null ? null : receipt.getId());
-            item.setDeliveryId(delivery == null ? null : delivery.getId());
-            item.setProductId(line.product().getId());
-            item.setUnitId(line.unitId());
-            item.setQty(line.item().qty());
-            item.setBaseQty(line.baseQty());
-            item.setUnitPrice(line.price());
-            item.setDiscount(line.discount());
-            item.setCostAtSale(line.product().getAvgCost());
-            saleItems.save(item);
+        for (SalePricing.PricedLine line : priced.lines().stream().sorted(Comparator.comparing(l -> l.product().getId())).toList()) {
+            documents.sell(line, warehouse.getId(), type, ref, receipt == null ? null : receipt.getId(),
+                    delivery == null ? null : delivery.getId(), null);
         }
 
         // 5. Payments: one per currency or method, linked to the receipt or invoice
@@ -311,8 +238,8 @@ public class PosService {
             paymentViews.add(view(payment));
         }
 
-        List<SaleLineResponse> lineViews = lines.stream().map(l -> new SaleLineResponse(l.product().getId(),
-                l.product().getNameEn(), l.unitId(), products.unitSymbols().get(l.unitId()), l.item().qty(), l.price(),
+        List<SaleLineResponse> lineViews = priced.lines().stream().map(l -> new SaleLineResponse(l.product().getId(),
+                l.product().getNameEn(), l.unitId(), products.unitSymbols().get(l.unitId()), l.qty(), l.price(),
                 l.discount(), l.net())).toList();
         return receipt != null
                 ? new CheckoutResponse(RECEIPT_REF, receipt.getId(), receipt.getNumber(), null, null,
@@ -340,6 +267,7 @@ public class PosService {
         r.setVoidedAt(Instant.now());
         r.setVoidedBy(CurrentUser.id());
         r.setNote(r.getNote() == null ? "Void: " + req.reason() : r.getNote() + " | Void: " + req.reason());
+        events.publishEvent(new TelegramAlerts.SaleVoided(BusinessContext.businessId(), r.getId(), CurrentUser.id(), req.reason()));
         return toResponse(r);
     }
 
@@ -426,8 +354,13 @@ public class PosService {
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> paymentsReceived(Long customerId, Pageable pageable) {
-        return PageResponse.of(paymentRepository.search(Payment.Direction.IN, scope.branchIds(), customerId, pageable),
-                this::view);
+        Page<Payment> page = paymentRepository.search(Payment.Direction.IN,
+                List.of(Payment.PartyType.CUSTOMER, Payment.PartyType.WALK_IN), scope.branchIds(), customerId, pageable);
+        Map<Long, String> names = new HashMap<>();
+        customers.findAllById(page.map(Payment::getPartyId).filter(Objects::nonNull).toSet())
+                .forEach(c -> names.put(c.getId(), c.getName()));
+        return PageResponse.of(page, p -> PaymentResponse.from(p,
+                allocations.findByFromTypeAndFromId(Allocation.FromType.PAYMENT, p.getId()), names.get(p.getPartyId())));
     }
 
     private PaymentResponse view(Payment p) {

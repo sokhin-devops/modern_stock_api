@@ -23,7 +23,11 @@ public record AppProperties(
     public record Billing(String mode) {
     }
 
-    /** The bot that sends Telegram messages; empty = Telegram is off on this server. */
-    public record Telegram(String botToken) {
+    /**
+     * The bot that sends Telegram messages; empty token = Telegram is off on this server. Telegram reaches the API by
+     * the webhook (webhookUrl, registered at start, checked with webhookSecret), or, in development without a public
+     * URL, the API asks Telegram for new messages every few seconds (polling).
+     */
+    public record Telegram(String botToken, String botUsername, String webhookUrl, String webhookSecret, boolean polling) {
     }
 }

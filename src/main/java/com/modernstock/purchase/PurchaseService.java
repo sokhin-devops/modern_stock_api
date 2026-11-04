@@ -33,6 +33,7 @@ import com.modernstock.money.Allocation;
 import com.modernstock.money.AllocationRequest;
 import com.modernstock.money.AllocationRepository;
 import com.modernstock.money.Payment;
+import com.modernstock.money.PaymentRepository;
 import com.modernstock.money.PaymentResponse;
 import com.modernstock.money.PaymentService;
 import com.modernstock.money.PaymentService.PaymentLine;
@@ -100,11 +101,12 @@ public class PurchaseService {
     }
 
     public record GrnLineResponse(Long id, Long purchaseOrderItemId, Long productId, String productName, Long unitId,
-                                  BigDecimal qty, BigDecimal baseQty, BigDecimal unitCost, String batchNo,
+                                  String unitSymbol, BigDecimal qty, BigDecimal baseQty, BigDecimal unitCost, String batchNo,
                                   LocalDate expiryDate) {
     }
 
-    public record GoodsReceiptResponse(Long id, String number, Long purchaseOrderId, Long branchId, Long warehouseId,
+    public record GoodsReceiptResponse(Long id, String number, Long purchaseOrderId, Long supplierId, String supplierName,
+                                       Long branchId, Long warehouseId,
                                        String warehouseName, Instant receivedAt, GoodsReceipt.Status status,
                                        Long billId, String billNumber, BigDecimal total,
                                        @Schema(description = "Three-way match: quantity or price differs from the order")
@@ -156,6 +158,7 @@ public class PurchaseService {
     private final ProductService products;
     private final StockService stock;
     private final PaymentService payments;
+    private final PaymentRepository paymentRecords;
     private final CurrencyService currency;
     private final DocumentNumberService numbers;
     private final BranchService branches;
@@ -303,6 +306,7 @@ public class PurchaseService {
         bill.setTotal(subtotal);
         bill.setStatus(subtotal.signum() == 0 ? Bill.Status.PAID : Bill.Status.UNPAID);
         bills.save(bill);
+        useAdvances(bill);
         return toResponse(grn, bill, warnings);
     }
 
@@ -420,6 +424,21 @@ public class PurchaseService {
 
     // ------------------------------------------------------------------ helpers
 
+    /** Money paid to the supplier before a bill existed (an advance) pays the next bill, oldest first (PLAIN.md 11.7). */
+    private void useAdvances(Bill bill) {
+        for (Payment p : paymentRecords.unallocated(Payment.PartyType.SUPPLIER, bill.getSupplierId(), Payment.Direction.OUT)) {
+            if (bill.open().signum() <= 0) {
+                break;
+            }
+            BigDecimal amount = p.getAmountUsd().subtract(allocations.allocated(Allocation.FromType.PAYMENT, p.getId()))
+                    .min(bill.open());
+            if (amount.signum() > 0) {
+                bill.pay(amount);
+                payments.allocate(p, Allocation.ToType.BILL, bill.getId(), amount);
+            }
+        }
+    }
+
     private void apply(PurchaseOrder po, Long supplierId, Long branchId, Long warehouseId, LocalDate orderDate,
                        LocalDate expectedDate, BigDecimal discount, String note, List<PoLineRequest> lines) {
         Supplier supplier = suppliers.get(supplierId);
@@ -494,10 +513,13 @@ public class PurchaseService {
 
     private GoodsReceiptResponse toResponse(GoodsReceipt g, Bill bill, List<String> warnings) {
         Map<Long, Product> byId = products.byIds(g.getItems().stream().map(GoodsReceiptItem::getProductId).toList());
+        Map<Long, String> symbols = products.unitSymbols();
+        Long supplierId = orders.get(g.getPurchaseOrderId()).getSupplierId();
         List<GrnLineResponse> lines = g.getItems().stream().map(i -> new GrnLineResponse(i.getId(),
                 i.getPurchaseOrderItemId(), i.getProductId(), byId.get(i.getProductId()).getNameEn(), i.getUnitId(),
-                i.getQty(), i.getBaseQty(), i.getUnitCost(), i.getBatchNo(), i.getExpiryDate())).toList();
-        return new GoodsReceiptResponse(g.getId(), g.getNumber(), g.getPurchaseOrderId(), g.getBranchId(),
+                symbols.get(i.getUnitId()), i.getQty(), i.getBaseQty(), i.getUnitCost(), i.getBatchNo(), i.getExpiryDate())).toList();
+        return new GoodsReceiptResponse(g.getId(), g.getNumber(), g.getPurchaseOrderId(), supplierId,
+                suppliers.get(supplierId).getName(), g.getBranchId(),
                 g.getWarehouseId(), branches.warehouseLabels().get(g.getWarehouseId()), g.getReceivedAt(),
                 g.getStatus(), bill == null ? null : bill.getId(), bill == null ? null : bill.getNumber(),
                 bill == null ? null : bill.getTotal(), warnings, lines);

@@ -36,4 +36,6 @@ public class Delivery extends TenantEntity {
     private Status status;
     private Instant postedAt;
     private String note;
+    /** The sales order this delivery fills, if any. */
+    private Long salesOrderId;
 }

@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.modernstock.common.DocumentNumberService;
+import com.modernstock.business.SettingsService;
+import com.modernstock.common.ApiException;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.currency.CurrencyService;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -33,10 +35,17 @@ public class PaymentService {
     private final PaymentRepository payments;
     private final AllocationRepository allocations;
     private final DocumentNumberService numbers;
+    private final SettingsService settings;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public Payment record(Payment.Direction direction, Payment.PartyType partyType, Long partyId, Long branchId,
                           PaymentLine line, BigDecimal rate, Long cashShiftId, String note) {
+        if (direction == Payment.Direction.IN && partyType != Payment.PartyType.SUPPLIER) {
+            SettingsService.BusinessSettings s = settings.get();
+            if ((line.method() == Payment.Method.KHQR && !s.khqrEnabled()) || (line.method() == Payment.Method.BANK && !s.bankEnabled())) {
+                throw ApiException.rule("PAYMENT_METHOD_OFF");
+            }
+        }
         Payment p = new Payment();
         p.setNumber(numbers.next(direction == Payment.Direction.IN ? DocType.RCV : DocType.PAY));
         p.setDirection(direction);

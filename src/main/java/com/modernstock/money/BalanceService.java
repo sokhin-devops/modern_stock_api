@@ -16,7 +16,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * What customers owe and what the business owes suppliers (PLAIN.md 11.7, 11.8):
- * opening balance + open document amounts − money paid but not yet allocated (deposits, advances).
+ * opening balance + open document amounts − money paid but not yet allocated (deposits, advances) − credit notes and
+ * supplier credits not yet used or refunded. Refunds (money back the other way) do not count as payments.
  * Native SQL is not filtered by @TenantId, so every query has business_id by hand.
  */
 @Service
@@ -30,10 +31,12 @@ public class BalanceService {
                              WHERE i.business_id = c.business_id AND i.customer_id = c.id AND i.status <> 'VOID'), 0)
                  - COALESCE((SELECT SUM(p.amount_usd) FROM payments p
                              WHERE p.business_id = c.business_id AND p.party_type = 'CUSTOMER' AND p.party_id = c.id
-                               AND p.status = 'POSTED'), 0)
+                               AND p.direction = 'IN' AND p.status = 'POSTED'), 0)
                  + COALESCE((SELECT SUM(a.amount) FROM allocations a JOIN payments p ON a.from_type = 'PAYMENT' AND a.from_id = p.id
                              WHERE p.business_id = c.business_id AND p.party_type = 'CUSTOMER' AND p.party_id = c.id
-                               AND p.status = 'POSTED'), 0) AS balance
+                               AND p.direction = 'IN' AND p.status = 'POSTED'), 0)
+                 - COALESCE((SELECT SUM(cn.amount - cn.used_amount - cn.refunded_amount) FROM credit_notes cn
+                             WHERE cn.business_id = c.business_id AND cn.customer_id = c.id AND cn.status = 'OPEN'), 0) AS balance
             FROM customers c
             WHERE c.business_id = :businessId AND c.id IN (:ids)
             """;
@@ -45,10 +48,12 @@ public class BalanceService {
                              WHERE b.business_id = s.business_id AND b.supplier_id = s.id AND b.status <> 'VOID'), 0)
                  - COALESCE((SELECT SUM(p.amount_usd) FROM payments p
                              WHERE p.business_id = s.business_id AND p.party_type = 'SUPPLIER' AND p.party_id = s.id
-                               AND p.status = 'POSTED'), 0)
+                               AND p.direction = 'OUT' AND p.status = 'POSTED'), 0)
                  + COALESCE((SELECT SUM(a.amount) FROM allocations a JOIN payments p ON a.from_type = 'PAYMENT' AND a.from_id = p.id
                              WHERE p.business_id = s.business_id AND p.party_type = 'SUPPLIER' AND p.party_id = s.id
-                               AND p.status = 'POSTED'), 0) AS balance
+                               AND p.direction = 'OUT' AND p.status = 'POSTED'), 0)
+                 - COALESCE((SELECT SUM(sc.amount - sc.used_amount - sc.refunded_amount) FROM supplier_credits sc
+                             WHERE sc.business_id = s.business_id AND sc.supplier_id = s.id AND sc.status = 'OPEN'), 0) AS balance
             FROM suppliers s
             WHERE s.business_id = :businessId AND s.id IN (:ids)
             """;

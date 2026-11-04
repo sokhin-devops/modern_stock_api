@@ -35,4 +35,7 @@ public class BusinessMember extends BaseEntity {
     private Long invitedBy;
     @Column(nullable = false)
     private Instant joinedAt = Instant.now();
+    /** Disabled because a plan ended with fewer member places; enabled again when the business subscribes. */
+    @Column(nullable = false)
+    private boolean disabledByPlan;
 }

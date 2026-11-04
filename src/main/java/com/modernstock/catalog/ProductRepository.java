@@ -29,6 +29,8 @@ public interface ProductRepository extends TenantRepository<Product> {
 
     boolean existsBySkuIgnoreCase(String sku);
 
+    Optional<Product> findBySkuIgnoreCase(String sku);
+
     /** Serializes average-cost updates of one product. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.id = :id")
