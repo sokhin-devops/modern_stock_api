@@ -149,7 +149,7 @@ src/main/resources/db/migration/   V1__init.sql (schema), V2__seed_roles.sql, V3
 ./mvnw test                          # PowerShell or cmd: .\mvnw.cmd test
 ```
 
-There are 21 tests, which take about a minute. Most of that is starting PostgreSQL once.
+There are 24 tests, which take about a minute. Most of that is starting PostgreSQL once.
 
 The tests start the real API against a real PostgreSQL (embedded, no Docker needed) and call it over HTTP, the same way the web app does. They can run while the local API is running.
 
