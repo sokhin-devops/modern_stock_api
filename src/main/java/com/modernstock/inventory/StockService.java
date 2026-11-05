@@ -184,6 +184,32 @@ public class StockService {
     }
 
     /**
+     * Before voiding a document that brought stock in: each batch it filled must still hold what it added (it may have
+     * been sold or moved since). Refused with VOID_STOCK_GONE, naming the product, otherwise.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void requireStillThere(Ref ref) {
+        java.util.Map<Long, BigDecimal> added = new java.util.LinkedHashMap<>();
+        java.util.Map<Long, Long> productOf = new java.util.HashMap<>();
+        for (StockMovement m : movements.findByReferenceTypeAndReferenceIdOrderByIdAsc(ref.type(), ref.id())) {
+            if (m.getBatchId() != null) {
+                added.merge(m.getBatchId(), m.getQty(), BigDecimal::add);
+                productOf.put(m.getBatchId(), m.getProductId());
+            }
+        }
+        for (java.util.Map.Entry<Long, BigDecimal> e : added.entrySet()) {
+            if (e.getValue().signum() <= 0) {
+                continue;
+            }
+            StockBatch b = batches.get(e.getKey());
+            if (b.getQtyOnHand().compareTo(e.getValue()) < 0) {
+                throw ApiException.rule("VOID_STOCK_GONE", products.get(productOf.get(e.getKey())).getNameEn(),
+                        b.getQtyOnHand().stripTrailingZeros().toPlainString(), e.getValue().stripTrailingZeros().toPlainString());
+            }
+        }
+    }
+
+    /**
      * Voids a document: writes the opposite of each of its movements, back into the same batches.
      * The document's own status check makes sure this runs once.
      */

@@ -19,12 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 import com.modernstock.admin.PlatformSettings;
 import com.modernstock.billing.Plan;
 import com.modernstock.billing.PlanRepository;
-import com.modernstock.member.InvitationService;
+import com.modernstock.common.RateLimiter;
 import com.modernstock.member.InvitationService.InvitationDetails;
+import com.modernstock.member.InvitationService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -62,6 +64,7 @@ public class PublicController {
     private final ContactMessageRepository contactMessages;
     private final InvitationService invitations;
     private final ApplicationEventPublisher events;
+    private final RateLimiter limits;
 
     @Operation(summary = "Plans for the Pricing page", description = "The website reads prices from here, so they always match billing.")
     @GetMapping("/plans")
@@ -87,7 +90,8 @@ public class PublicController {
     @PostMapping("/contact")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Transactional
-    public void sendContactMessage(@Valid @RequestBody ContactRequest req) {
+    public void sendContactMessage(@Valid @RequestBody ContactRequest req, HttpServletRequest request) {
+        limits.check(RateLimiter.Rule.CONTACT_IP, RateLimiter.ip(request));
         ContactMessage m = new ContactMessage();
         m.setName(req.name());
         m.setPhone(req.phone());
@@ -101,7 +105,8 @@ public class PublicController {
     @Operation(summary = "Invitation details for the invitation page",
             description = "Shows the business, role and branch before the person joins. The token is the value from the link.")
     @GetMapping("/invitations/{token}")
-    public InvitationDetails invitationDetails(@PathVariable String token) {
+    public InvitationDetails invitationDetails(@PathVariable String token, HttpServletRequest request) {
+        limits.check(RateLimiter.Rule.TOKEN_IP, RateLimiter.ip(request));
         return invitations.details(token);
     }
 

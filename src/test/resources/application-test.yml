@@ -1,4 +1,6 @@
 app:
+  rate-limits:
+    enabled: false
   dev-links: true
   demo-data: false
 

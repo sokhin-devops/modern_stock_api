@@ -70,6 +70,7 @@ com\modernstock\sale\PosService.class
 com\modernstock\catalog\ProductService$ProductResponse.class
 com\modernstock\publicsite\PublicController$PlanResponse.class
 com\modernstock\business\BusinessService$OnboardingRequest.class
+com\modernstock\common\RateLimiter$Rule.class
 com\modernstock\inventory\StockTransferItem.class
 com\modernstock\sale\SaleLines$Preview.class
 com\modernstock\report\MoneyReportService.class
@@ -296,6 +297,7 @@ com\modernstock\report\ReportScope.class
 com\modernstock\common\Phones.class
 com\modernstock\purchase\PurchaseService$GoodsReceiptLineRequest.class
 com\modernstock\auth\UserToken.class
+com\modernstock\common\RateLimiter.class
 com\modernstock\inventory\StockService.class
 com\modernstock\inventory\StockMovement$Type.class
 com\modernstock\member\RoleService.class
@@ -380,6 +382,7 @@ com\modernstock\auth\AuthService.class
 com\modernstock\sale\SalePricing$Priced.class
 com\modernstock\sale\SalesOrderItem.class
 com\modernstock\common\PageResponse.class
+com\modernstock\common\RateLimiter$Entry.class
 com\modernstock\member\InvitationService$InvitationDetails.class
 com\modernstock\sale\SalesReturn.class
 com\modernstock\catalog\BranchPrice.class

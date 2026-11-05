@@ -23,6 +23,8 @@ import com.modernstock.auth.AuthService.SignUpRequest;
 import com.modernstock.auth.AuthService.TokenRequest;
 import com.modernstock.auth.AuthService.TokenResponse;
 import com.modernstock.common.CurrentUser;
+import com.modernstock.common.RateLimiter.Rule;
+import com.modernstock.common.RateLimiter;
 import com.modernstock.config.AppProperties;
 import com.modernstock.member.InvitationService.SignUpWithInvitationRequest;
 import com.modernstock.member.InvitationService;
@@ -30,6 +32,7 @@ import com.modernstock.member.InvitationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -45,30 +48,37 @@ public class AuthController {
     private final AuthService auth;
     private final InvitationService invitations;
     private final AppProperties props;
+    private final RateLimiter limits;
 
     @Operation(summary = "Create an account", description = "The account starts unverified and gets a verification link valid 24 hours.")
     @PostMapping("/sign-up")
     @ResponseStatus(HttpStatus.CREATED)
-    public MessageResponse signUp(@Valid @RequestBody SignUpRequest req) {
+    public MessageResponse signUp(@Valid @RequestBody SignUpRequest req, HttpServletRequest request) {
+        limits.check(Rule.SIGN_UP_IP, RateLimiter.ip(request));
         return auth.signUp(req);
     }
 
     @Operation(summary = "Verify the email from the link")
     @PostMapping("/verify-email")
-    public MessageResponse verifyEmail(@Valid @RequestBody TokenRequest req) {
+    public MessageResponse verifyEmail(@Valid @RequestBody TokenRequest req, HttpServletRequest request) {
+        limits.check(Rule.TOKEN_IP, RateLimiter.ip(request));
         return auth.verifyEmail(req.token());
     }
 
     @PostMapping("/resend-verification")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public MessageResponse resendVerification(@Valid @RequestBody EmailRequest req) {
+    public MessageResponse resendVerification(@Valid @RequestBody EmailRequest req, HttpServletRequest request) {
+        limits.check(Rule.EMAIL_IP, RateLimiter.ip(request));
+        limits.check(Rule.EMAIL_ADDRESS, req.email());
         return auth.resendVerification(req.email());
     }
 
     @Operation(summary = "Log in with email or username",
             description = "Returns a 15-minute access token. The refresh token is set as the HttpOnly cookie ms_refresh.")
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest req) {
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest req, HttpServletRequest request) {
+        limits.check(Rule.LOGIN_IP, RateLimiter.ip(request));
+        limits.check(Rule.LOGIN_ACCOUNT, req.login());
         return withCookie(auth.login(req), HttpStatus.OK);
     }
 
@@ -94,6 +104,7 @@ public class AuthController {
     @PostMapping("/pin-switch")
     public ResponseEntity<TokenResponse> pinSwitch(@Valid @RequestBody PinSwitchRequest req,
             @Parameter(hidden = true) @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+        limits.check(Rule.PIN_SWITCH_USER, String.valueOf(CurrentUser.id()));
         Session session = auth.pinSwitch(CurrentUser.id(), req);
         auth.logout(refreshToken);
         return withCookie(session, HttpStatus.OK);
@@ -109,19 +120,23 @@ public class AuthController {
     @Operation(summary = "Email a password reset link", description = "Only for accounts with a verified email. Same answer either way.")
     @PostMapping("/forgot-password")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public MessageResponse forgotPassword(@Valid @RequestBody EmailRequest req) {
+    public MessageResponse forgotPassword(@Valid @RequestBody EmailRequest req, HttpServletRequest request) {
+        limits.check(Rule.EMAIL_IP, RateLimiter.ip(request));
+        limits.check(Rule.EMAIL_ADDRESS, req.email());
         return auth.forgotPassword(req.email());
     }
 
     @PostMapping("/reset-password")
-    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest req, HttpServletRequest request) {
+        limits.check(Rule.TOKEN_IP, RateLimiter.ip(request));
         return auth.resetPassword(req);
     }
 
     @Operation(summary = "Join a business from an invitation link as a new account",
             description = "Creates the account (email optional), adds the member and logs in. businessId in the answer is the business to open.")
     @PostMapping("/sign-up-with-invitation")
-    public ResponseEntity<TokenResponse> signUpWithInvitation(@Valid @RequestBody SignUpWithInvitationRequest req) {
+    public ResponseEntity<TokenResponse> signUpWithInvitation(@Valid @RequestBody SignUpWithInvitationRequest req, HttpServletRequest request) {
+        limits.check(Rule.TOKEN_IP, RateLimiter.ip(request));
         InvitationService.Joined joined = invitations.signUpWithInvitation(req);
         return withCookie(auth.issueSession(joined.user(), joined.businessId()), HttpStatus.CREATED);
     }

@@ -106,6 +106,7 @@ public class TransferService {
     private final BranchScope scope;
     private final StockRequestRepository stockRequests;
     private final Reservations reservations;
+    private final StockAdjustmentRepository adjustmentRows;
 
     @Transactional
     public TransferResponse create(TransferRequest req) {
@@ -121,6 +122,38 @@ public class TransferService {
     public TransferResponse update(Long id, TransferRequest req) {
         StockTransfer t = draft(id);
         apply(t, req);
+        return toResponse(t);
+    }
+
+    /**
+     * Voids a moved or received transfer (PLAIN.md 11.9 step 5): the goods go back to the source, the same batches at
+     * the same cost, and a "lost in transit" adjustment is voided with it. Only while the destination still has them;
+     * otherwise make a new transfer back.
+     */
+    @Transactional
+    public TransferResponse voidTransfer(Long id) {
+        StockTransfer t = locked(id);
+        if (t.getStatus() != StockTransfer.Status.MOVED && t.getStatus() != StockTransfer.Status.RECEIVED) {
+            throw ApiException.rule("WRONG_STATUS", t.getStatus());
+        }
+        BusinessContext.requireBranch(branchOf(t.getFromWarehouseId()));
+        BusinessContext.requireBranch(branchOf(t.getToWarehouseId()));
+        if (t.getAdjustmentId() != null) {
+            // what went missing on the way comes back first, so the destination holds all that was sent
+            StockService.Ref lost = new StockService.Ref(AdjustmentService.REF, t.getAdjustmentId());
+            stock.reverse(lost);
+            adjustmentRows.findById(t.getAdjustmentId()).ifPresent(a -> {
+                a.setStatus(StockAdjustment.Status.VOID);
+                a.setVoidedAt(Instant.now());
+                a.setVoidedBy(CurrentUser.id());
+            });
+        }
+        StockService.Ref ref = new StockService.Ref(REF, t.getId());
+        stock.requireStillThere(ref);
+        stock.reverse(ref);
+        t.setStatus(StockTransfer.Status.VOID);
+        activity.record("TRANSFER_VOIDED", "TRANSFER", t.getId(), t.getNumber(), branchOf(t.getFromWarehouseId()), null,
+                ActivityService.values("status", "VOID"));
         return toResponse(t);
     }
 

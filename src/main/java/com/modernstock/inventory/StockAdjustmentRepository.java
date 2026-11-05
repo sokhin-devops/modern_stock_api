@@ -10,6 +10,11 @@ import com.modernstock.common.TenantRepository;
 
 public interface StockAdjustmentRepository extends TenantRepository<StockAdjustment> {
 
+    /** Void locks the row, so it can't run twice at once. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select a from StockAdjustment a where a.id = :id")
+    java.util.Optional<StockAdjustment> lockById(Long id);
+
     @Query("""
             select a from StockAdjustment a
             where a.branchId in :branchIds

@@ -88,6 +88,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\PageResponse.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\Phones.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\ProblemWriter.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\RateLimiter.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\TenantEntity.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\TenantLine.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\TenantRepository.java

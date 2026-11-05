@@ -123,6 +123,7 @@ public class BillingController {
     private final ActivityService activity;
     private final PlanRepository plans;
     private final CouponService coupons;
+    private final com.modernstock.common.RateLimiter limits;
     private final BillingInvoiceRepository invoices;
     private final BillingPaymentRepository payments;
     private final AddonRepository addons;
@@ -172,6 +173,7 @@ public class BillingController {
                     + "422 COUPON_INVALID, COUPON_USED (this business had it), COUPON_RUNNING (another one runs).")
     @PostMapping("/coupon")
     public BillingResponse redeemCoupon(@Valid @RequestBody CouponRedeem req) {
+        limits.check(com.modernstock.common.RateLimiter.Rule.COUPON_BUSINESS, String.valueOf(BusinessContext.businessId()));
         CouponService.Running r = billing.redeemCoupon(req.code());
         activity.record("COUPON_REDEEMED", "SUBSCRIPTION", null, r.code(), null, null,
                 ActivityService.values("coupon", r.code(), "percentOff", r.percentOff(), "periods", r.periodsLeft()));

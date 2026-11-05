@@ -9,3 +9,7 @@ springdoc:
     enabled: ${SWAGGER_ENABLED:false}
   api-docs:
     enabled: ${SWAGGER_ENABLED:false}
+
+server:
+  # Behind Nginx: the client's address comes from X-Forwarded-For, trusted only from internal proxies (rate limits)
+  forward-headers-strategy: native

@@ -77,6 +77,16 @@ public class InventoryController {
     }
 
     @Tag(name = "Adjustments")
+    @Operation(summary = "Void a posted adjustment",
+            description = "The opposite movements, back into the same batches, while what it added is still there (422 VOID_STOCK_GONE). "
+                    + "A lost-in-transit adjustment is voided with its transfer.")
+    @PostMapping("/adjustments/{id}/void")
+    @PreAuthorize("hasAuthority('adjustment:post')")
+    public AdjustmentResponse voidAdjustment(@PathVariable Long id) {
+        return adjustments.voidAdjustment(id);
+    }
+
+    @Tag(name = "Adjustments")
     @PostMapping("/adjustments/{id}/reject")
     @PreAuthorize("hasAuthority('adjustment:approve')")
     public AdjustmentResponse rejectAdjustment(@PathVariable Long id) {
@@ -200,6 +210,16 @@ public class InventoryController {
     @PreAuthorize("hasAuthority('transfer:manage')")
     public TransferResponse receiveTransfer(@PathVariable Long id, @Valid @RequestBody(required = false) TransferReceiveRequest req) {
         return transfers.receive(id, req);
+    }
+
+    @Tag(name = "Transfers")
+    @Operation(summary = "Void a moved or received transfer",
+            description = "PLAIN.md 11.9: the goods go back to the source (same batches, same cost), with the lost-in-transit "
+                    + "adjustment; only while the destination still has them (422 VOID_STOCK_GONE).")
+    @PostMapping("/transfers/{id}/void")
+    @PreAuthorize("hasAuthority('transfer:return_void')")
+    public TransferResponse voidTransfer(@PathVariable Long id) {
+        return transfers.voidTransfer(id);
     }
 
     @Tag(name = "Transfers")

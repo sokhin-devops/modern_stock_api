@@ -163,6 +163,30 @@ public class AdjustmentService {
     }
 
     /** The reason and the value of the stock that came in (+) or went out (-). */
+    /**
+     * Voids a posted adjustment or opening stock (PLAIN.md 11.1): the opposite movements, back into the same batches,
+     * while what it added is still there. A "lost in transit" adjustment goes with its transfer (void the transfer).
+     */
+    @Transactional
+    public AdjustmentResponse voidAdjustment(Long id) {
+        StockAdjustment adj = adjustments.lockById(id).orElseThrow(() -> ApiException.notFound("Adjustment"));
+        BusinessContext.requireBranch(adj.getBranchId());
+        if (adj.getStatus() != StockAdjustment.Status.POSTED) {
+            throw ApiException.rule("WRONG_STATUS", adj.getStatus());
+        }
+        if (adj.getReason() == StockAdjustment.Reason.LOST_IN_TRANSIT) {
+            throw ApiException.rule("ADJUSTMENT_FROM_TRANSFER");
+        }
+        StockService.Ref ref = new StockService.Ref(REF, adj.getId());
+        stock.requireStillThere(ref);
+        stock.reverse(ref);
+        adj.setStatus(StockAdjustment.Status.VOID);
+        adj.setVoidedAt(Instant.now());
+        adj.setVoidedBy(CurrentUser.id());
+        logPosted("ADJUSTMENT_VOIDED", adj);
+        return toResponse(adj);
+    }
+
     private void logPosted(String action, StockAdjustment adj) {
         BigDecimal value = adj.getItems().stream().map(i -> i.getQtyChange().multiply(i.getUnitCost()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
