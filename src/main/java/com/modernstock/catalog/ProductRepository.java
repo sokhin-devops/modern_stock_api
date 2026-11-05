@@ -1,5 +1,7 @@
 package com.modernstock.catalog;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -30,6 +32,10 @@ public interface ProductRepository extends TenantRepository<Product> {
     boolean existsBySkuIgnoreCase(String sku);
 
     Optional<Product> findBySkuIgnoreCase(String sku);
+
+    /** The products of an import in one query: by SKU (any case, given in lower case) or by barcode. */
+    @Query("select p from Product p where lower(p.sku) in :skus or p.barcode in :barcodes")
+    List<Product> findBySkusOrBarcodes(Collection<String> skus, Collection<String> barcodes);
 
     /** Serializes average-cost updates of one product. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
