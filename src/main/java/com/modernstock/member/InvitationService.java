@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.modernstock.activity.ActivityService;
 import com.modernstock.admin.PlatformSettings;
 import com.modernstock.auth.User;
 import com.modernstock.auth.UserRepository;
@@ -80,6 +81,7 @@ public class InvitationService {
     }
 
     private final InvitationRepository invitations;
+    private final ActivityService activity;
     private final RoleRepository roles;
     private final BusinessRepository businesses;
     private final BusinessMemberRepository members;
@@ -110,6 +112,8 @@ public class InvitationService {
         inv.setInvitedBy(ctx.userId());
         String link = renew(inv);
         invitations.save(inv);
+        activity.record("MEMBER_INVITED", "INVITATION", inv.getId(), inv.getEmail(), null, null, ActivityService.values(
+                "role", role.getNameEn(), "branch", req.branchId() == null ? null : branchName(req.branchId())));
         if (inv.getMethod() == Invitation.Method.EMAIL) {
             mail.send(inv.getEmail(), "You are invited to ModernStock", "Open this link within 7 days: " + link);
         }
@@ -142,6 +146,7 @@ public class InvitationService {
             throw ApiException.rule("INVITATION_NOT_OPEN");
         }
         inv.setStatus(Invitation.Status.CANCELLED);
+        activity.record("INVITATION_CANCELLED", "INVITATION", inv.getId(), inv.getEmail(), null, null, null);
     }
 
     @Transactional(readOnly = true)

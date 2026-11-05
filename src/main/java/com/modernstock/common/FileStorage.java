@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileStorage {
 
     public static final long MAX_BYTES = 2L * 1024 * 1024;
+    /** Bank transfer screenshots (FR-10.14): never served at /public/files, only to the Owner and the super admin. */
+    public static final String PRIVATE_TRANSFERS = "transfers";
     private static final Map<String, String> TYPES = Map.of("jpg", "image/jpeg", "png", "image/png", "webp", "image/webp");
 
     private final Path root;

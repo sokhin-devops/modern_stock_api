@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
@@ -23,20 +24,20 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.Dates;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.inventory.StockMovement;
 import com.modernstock.inventory.StockService;
 import com.modernstock.money.Allocation;
-import com.modernstock.money.AllocationRequest;
 import com.modernstock.money.AllocationRepository;
+import com.modernstock.money.AllocationRequest;
 import com.modernstock.money.Payment;
 import com.modernstock.money.PaymentRepository;
 import com.modernstock.money.PaymentResponse;
-import com.modernstock.money.PaymentService;
 import com.modernstock.money.PaymentService.PaymentLine;
+import com.modernstock.money.PaymentService;
 import com.modernstock.partner.Supplier;
 import com.modernstock.partner.SupplierRepository;
 
@@ -150,6 +151,7 @@ public class PurchaseService {
     }
 
     private final PurchaseOrderRepository orders;
+    private final ActivityService activity;
     private final GoodsReceiptRepository receipts;
     private final BillRepository bills;
     private final SupplierRepository suppliers;
@@ -483,6 +485,9 @@ public class PurchaseService {
             throw ApiException.rule("WRONG_STATUS", po.getStatus());
         }
         po.setStatus(to);
+        if (to == PurchaseOrder.Status.CANCELLED) {
+            activity.record("PURCHASE_ORDER_CANCELLED", "PURCHASE_ORDER", po.getId(), po.getNumber(), po.getBranchId(), null, null);
+        }
         return toResponse(po);
     }
 

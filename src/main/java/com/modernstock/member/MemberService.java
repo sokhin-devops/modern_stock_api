@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.auth.AuthService;
 import com.modernstock.auth.User;
 import com.modernstock.auth.UserRepository;
@@ -31,7 +32,8 @@ public class MemberService {
 
     public record MemberResponse(Long id, Long userId, String fullName, String username, String email, String phone,
                                  Long roleId, String roleCode, String roleNameEn, String roleNameKm,
-                                 @Schema(description = "null = all branches") Long branchId,
+                                 @Schema(description = "The first branch; null = all branches") Long branchId,
+                                 @Schema(description = "Every branch the member works in; null = all branches") List<Long> branchIds,
                                  BusinessMember.Status status, Instant joinedAt,
                                  @Schema(description = "The Owner can create a reset link (joined without a verified email)")
                                  boolean canResetPassword) {
@@ -39,6 +41,7 @@ public class MemberService {
 
     public record UpdateMemberRequest(Long roleId,
                                       @Schema(description = "Work in this branch") Long branchId,
+                                      @Schema(description = "Work in these branches (FR-6.18); wins over branchId") List<Long> branchIds,
                                       @Schema(description = "true = access to all branches (branchId is ignored)") Boolean allBranches,
                                       @Schema(description = "ACTIVE or DISABLED; use DELETE to remove") BusinessMember.Status status) {
     }
@@ -60,6 +63,7 @@ public class MemberService {
     private final BranchRepository branches;
     private final EntitlementService entitlements;
     private final AuthService auth;
+    private final ActivityService activity;
 
     @Transactional(readOnly = true)
     public List<MemberResponse> list() {
@@ -79,6 +83,7 @@ public class MemberService {
     public MemberResponse update(Long id, UpdateMemberRequest req) {
         BusinessMember m = owned(id);
         boolean wasActiveOwner = m.getStatus() == BusinessMember.Status.ACTIVE && isOwnerRole(m.getRoleId());
+        Map<String, Object> before = facts(m);
 
         if (req.roleId() != null) {
             Role role = roles.findById(req.roleId()).orElseThrow(() -> ApiException.notFound("Role"));
@@ -89,9 +94,17 @@ public class MemberService {
         }
         if (Boolean.TRUE.equals(req.allBranches())) {
             m.setBranchId(null);
+            m.getMoreBranchIds().clear();
+        } else if (req.branchIds() != null && !req.branchIds().isEmpty()) {
+            List<Long> ids = req.branchIds().stream().distinct().sorted().toList();
+            ids.forEach(branches::get);
+            m.setBranchId(ids.get(0));
+            m.getMoreBranchIds().clear();
+            m.getMoreBranchIds().addAll(ids.subList(1, ids.size()));
         } else if (req.branchId() != null) {
             branches.get(req.branchId());
             m.setBranchId(req.branchId());
+            m.getMoreBranchIds().clear();
         }
         if (req.status() != null && req.status() != m.getStatus()) {
             if (req.status() == BusinessMember.Status.REMOVED) {
@@ -106,7 +119,9 @@ public class MemberService {
         if (wasActiveOwner && !stillActiveOwner) {
             requireAnotherOwner(m);
         }
-        return toResponse(m, users.findById(m.getUserId()).orElseThrow(), roles.findById(m.getRoleId()).orElseThrow());
+        User user = users.findById(m.getUserId()).orElseThrow();
+        activity.changed("MEMBER_CHANGED", "MEMBER", m.getId(), user.getFullName(), null, before, facts(m));
+        return toResponse(m, user, roles.findById(m.getRoleId()).orElseThrow());
     }
 
     /** Removed members keep their names on old documents. */
@@ -117,6 +132,16 @@ public class MemberService {
             requireAnotherOwner(m);
         }
         m.setStatus(BusinessMember.Status.REMOVED);
+        activity.record("MEMBER_REMOVED", "MEMBER", m.getId(), users.findById(m.getUserId()).map(User::getFullName).orElse(null),
+                null, facts(m), null);
+    }
+
+    /** Role, branch and status, by name, for the activity log; branch null = all branches. */
+    private Map<String, Object> facts(BusinessMember m) {
+        return ActivityService.values("role", roles.findById(m.getRoleId()).map(Role::getNameEn).orElse(null),
+                "branch", m.getBranchId() == null ? null : m.workBranchIds().stream()
+                        .map(id -> branches.findById(id).map(b -> b.getNameEn()).orElse("?")).collect(Collectors.joining(", ")),
+                "status", m.getStatus().name());
     }
 
     /**
@@ -131,6 +156,7 @@ public class MemberService {
             throw ApiException.rule("RESET_LINK_NOT_ALLOWED");
         }
         Duration validFor = Duration.ofHours(24);
+        activity.record("RESET_LINK_CREATED", "MEMBER", m.getId(), u.getFullName(), null, null, null);
         return new LinkResponse(auth.resetLink(u, validFor), Instant.now().plus(validFor));
     }
 
@@ -160,7 +186,7 @@ public class MemberService {
 
     private static MemberResponse toResponse(BusinessMember m, User u, Role r) {
         return new MemberResponse(m.getId(), u.getId(), u.getFullName(), u.getUsername(), u.getEmail(), u.getPhone(),
-                r.getId(), r.getCode(), r.getNameEn(), r.getNameKm(), m.getBranchId(), m.getStatus(), m.getJoinedAt(),
+                r.getId(), r.getCode(), r.getNameEn(), r.getNameKm(), m.getBranchId(), m.workBranchIds(), m.getStatus(), m.getJoinedAt(),
                 m.getBusinessId().equals(u.getManagedByBusinessId()) && u.getEmailVerifiedAt() == null);
     }
 }

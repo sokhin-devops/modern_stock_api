@@ -12,6 +12,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
+import com.modernstock.auth.User;
+import com.modernstock.auth.UserRepository;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.catalog.Product;
@@ -43,7 +46,8 @@ import lombok.RequiredArgsConstructor;
  * what was sold minus what came back before. Good items go back to stock at their cost when sold; damaged ones are a
  * loss. The money given back is the returned lines' share of the sale (discounts and VAT included) and becomes a credit
  * note: first used on the invoice it came from, then refunded or kept as the customer's credit. A walk-in customer is
- * always refunded at once.
+ * always refunded at once. A Cashier only requests a return (section 5): it waits, moving nothing, until someone who may
+ * void sales approves it (then it is posted as if made now, the cash coming out of the Cashier's shift) or rejects it.
  */
 @Service
 @RequiredArgsConstructor
@@ -85,9 +89,13 @@ public class ReturnService {
                                      BigDecimal left, CreditNote.Status status, String reason) {
     }
 
-    public record ReturnResponse(Long id, String number, Long salesReceiptId, Long invoiceId, Long customerId,
+    public record ReturnResponse(Long id, String number, Long salesReceiptId, Long invoiceId, String saleNumber, Long customerId,
                                  String customerName, Instant returnedAt, BigDecimal vat, BigDecimal total, BigDecimal lossValue,
-                                 String reason, List<ReturnLineResponse> lines, CreditNoteResponse creditNote) {
+                                 String reason, SalesReturn.Status status,
+                                 @Schema(description = "Who made it (for a request: the Cashier)") String createdByName,
+                                 @Schema(description = "A request: how the customer is paid back once approved") RefundRequest refund,
+                                 String reviewedByName, Instant reviewedAt,
+                                 List<ReturnLineResponse> lines, CreditNoteResponse creditNote) {
     }
 
     public record CreditNoteRequest(@NotNull Long customerId, Long branchId,
@@ -117,6 +125,8 @@ public class ReturnService {
     private final CashShiftService cashShifts;
     private final DocumentNumberService numbers;
     private final BranchScope scope;
+    private final UserRepository users;
+    private final ActivityService activity;
 
     /** The sale behind a return: its lines, total and VAT, and where the goods go back. */
     private record Source(Long receiptId, Long invoiceId, String number, Long branchId, Long warehouseId, Long customerId,
@@ -145,6 +155,10 @@ public class ReturnService {
 
     @Transactional
     public ReturnResponse create(ReturnRequest req) {
+        boolean canPost = BusinessContext.has("sale:void");
+        if (!canPost && !BusinessContext.has("sales_return:request")) {
+            throw ApiException.forbidden("PERMISSION_DENIED");
+        }
         Source s = source(req.salesReceiptId(), req.invoiceId());
         BusinessContext.branchForWrite(s.branchId()); // a read-only branch takes no new work
         if (s.customerId() == null && req.refund() == null) {
@@ -206,9 +220,63 @@ public class ReturnService {
         r.setTotal(r.getItems().stream().map(SalesReturnItem::getRefund).reduce(BigDecimal.ZERO, BigDecimal::add));
         r.setVat(net.signum() == 0 ? BigDecimal.ZERO : s.vat().multiply(returnedNet).divide(net, 2, RoundingMode.HALF_UP));
         r.setLossValue(loss.setScale(2, RoundingMode.HALF_UP));
+        if (req.refund() != null) {
+            r.setRefundMethod(req.refund().method());
+            r.setRefundCurrency(req.refund().currency());
+        }
+        if (!canPost) {
+            r.setStatus(SalesReturn.Status.WAITING_APPROVAL);
+            returns.save(r);
+            return toResponse(r, null);
+        }
         returns.save(r);
+        return toResponse(r, post(r, s, CurrentUser.id()));
+    }
 
-        // Good items back to stock, at their cost when sold
+    /** A Cashier's return, posted now: goods back, credit note, and the refund they asked for from their shift. */
+    @Transactional
+    public ReturnResponse approve(Long id) {
+        SalesReturn r = waiting(id);
+        Source s = source(r.getSalesReceiptId(), r.getInvoiceId()); // refused if the sale was voided meanwhile
+        BusinessContext.branchForWrite(s.branchId());
+        r.setStatus(SalesReturn.Status.POSTED);
+        r.setReturnedAt(Instant.now());
+        reviewed(r);
+        CreditNote cn = post(r, s, r.getCreatedBy());
+        activity.record("SALES_RETURN_APPROVED", "SALES_RETURN", r.getId(), r.getNumber(), r.getBranchId(), null,
+                ActivityService.values("total", r.getTotal()));
+        return toResponse(r, cn);
+    }
+
+    @Transactional
+    public ReturnResponse reject(Long id) {
+        SalesReturn r = waiting(id);
+        r.setStatus(SalesReturn.Status.REJECTED);
+        reviewed(r);
+        activity.record("SALES_RETURN_REJECTED", "SALES_RETURN", r.getId(), r.getNumber(), r.getBranchId(), null,
+                ActivityService.values("total", r.getTotal()));
+        return toResponse(r, null);
+    }
+
+    private SalesReturn waiting(Long id) {
+        SalesReturn r = returns.get(id);
+        BusinessContext.requireBranch(r.getBranchId());
+        if (r.getStatus() != SalesReturn.Status.WAITING_APPROVAL) {
+            throw ApiException.rule("WRONG_STATUS", r.getStatus());
+        }
+        return r;
+    }
+
+    private static void reviewed(SalesReturn r) {
+        r.setReviewedBy(CurrentUser.idOrNull());
+        r.setReviewedAt(Instant.now());
+    }
+
+    /**
+     * What a posted return does: good items back to stock at their cost when sold, a credit note used on the invoice
+     * first, then the refund asked for. Cash comes out of the open shift of whoever served the customer.
+     */
+    private CreditNote post(SalesReturn r, Source s, Long cashierId) {
         for (SalesReturnItem item : r.getItems()) {
             if (item.getCondition() == SalesReturnItem.Condition.GOOD) {
                 stock.receive(products.active(item.getProductId()), r.getWarehouseId(), item.getBaseQty(), item.getCostAtSale(),
@@ -218,22 +286,22 @@ public class ReturnService {
 
         CreditNote cn = null;
         if (r.getTotal().signum() > 0) {
-            cn = newCreditNote(r.getBranchId(), r.getCustomerId(), r.getTotal(), req.reason());
+            cn = newCreditNote(r.getBranchId(), r.getCustomerId(), r.getTotal(), r.getReason());
             cn.setSalesReturnId(r.getId());
             creditNotes.save(cn);
             if (s.invoice() != null && s.invoice().open().signum() > 0) {
                 apply(cn, s.invoice(), cn.left().min(s.invoice().open()));
             }
-            if (req.refund() != null && cn.left().signum() > 0) {
-                refund(cn, req.refund().method(), req.refund().currency(), cn.left());
+            if (r.getRefundMethod() != null && cn.left().signum() > 0) {
+                refund(cn, r.getRefundMethod(), r.getRefundCurrency(), cn.left(), cashierId);
             }
         }
-        return toResponse(r, cn);
+        return cn;
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<ReturnResponse> list(Pageable pageable) {
-        return PageResponse.of(returns.search(scope.branchIds(), pageable),
+    public PageResponse<ReturnResponse> list(SalesReturn.Status status, Pageable pageable) {
+        return PageResponse.of(returns.search(scope.branchIds(), status, pageable),
                 r -> toResponse(r, creditNotes.findBySalesReturnId(r.getId()).stream().findFirst().orElse(null)));
     }
 
@@ -281,7 +349,7 @@ public class ReturnService {
         if (amount.signum() <= 0 || amount.compareTo(cn.left()) > 0) {
             throw ApiException.badRequest("CREDIT_AMOUNT_INVALID", cn.left());
         }
-        refund(cn, req.method(), req.currency(), amount);
+        refund(cn, req.method(), req.currency(), amount, CurrentUser.id());
         return toResponse(cn);
     }
 
@@ -359,11 +427,11 @@ public class ReturnService {
     }
 
     /** Money out of the till (or bank) to the customer; cash on the cashier's open shift lowers its expected cash. */
-    private void refund(CreditNote cn, Payment.Method method, Payment.Currency cur, BigDecimal usd) {
+    private void refund(CreditNote cn, Payment.Method method, Payment.Currency cur, BigDecimal usd, Long cashierId) {
         BigDecimal rate = currency.current().usdToKhr();
         BigDecimal amount = cur == Payment.Currency.KHR ? usd.multiply(rate).setScale(0, RoundingMode.HALF_UP) : usd;
-        Long shiftId = method == Payment.Method.CASH
-                ? cashShifts.openShiftOf(cn.getBranchId(), CurrentUser.id()).map(CashShift::getId).orElse(null) : null;
+        Long shiftId = method == Payment.Method.CASH && cashierId != null
+                ? cashShifts.openShiftOf(cn.getBranchId(), cashierId).map(CashShift::getId).orElse(null) : null;
         payments.record(Payment.Direction.OUT, cn.getCustomerId() == null ? Payment.PartyType.WALK_IN : Payment.PartyType.CUSTOMER,
                 cn.getCustomerId(), cn.getBranchId(), new PaymentLine(method, cur, amount, null), rate, shiftId, cn.getNumber());
         cn.refund(usd);
@@ -385,11 +453,23 @@ public class ReturnService {
     private ReturnResponse toResponse(SalesReturn r, CreditNote cn) {
         Map<Long, String> symbols = products.unitSymbols();
         Map<Long, Product> byId = products.byIds(r.getItems().stream().map(SalesReturnItem::getProductId).toList());
-        return new ReturnResponse(r.getId(), r.getNumber(), r.getSalesReceiptId(), r.getInvoiceId(), r.getCustomerId(),
+        return new ReturnResponse(r.getId(), r.getNumber(), r.getSalesReceiptId(), r.getInvoiceId(), saleNumber(r), r.getCustomerId(),
                 customerName(r.getCustomerId()), r.getReturnedAt(), r.getVat(), r.getTotal(), r.getLossValue(), r.getReason(),
+                r.getStatus(), userName(r.getCreatedBy()),
+                r.getRefundMethod() == null ? null : new RefundRequest(r.getRefundMethod(), r.getRefundCurrency()),
+                userName(r.getReviewedBy()), r.getReviewedAt(),
                 r.getItems().stream().map(i -> new ReturnLineResponse(i.getProductId(), byId.get(i.getProductId()).getNameEn(),
                         symbols.get(i.getUnitId()), i.getQty(), i.getCondition(), i.getRefund())).toList(),
                 cn == null ? null : toResponse(cn));
+    }
+
+    private String saleNumber(SalesReturn r) {
+        return r.getSalesReceiptId() != null ? receipts.findById(r.getSalesReceiptId()).map(SalesReceipt::getNumber).orElse(null)
+                : invoices.findById(r.getInvoiceId()).map(Invoice::getNumber).orElse(null);
+    }
+
+    private String userName(Long id) {
+        return id == null ? null : users.findById(id).map(User::getFullName).orElse(null);
     }
 
     private CreditNoteResponse toResponse(CreditNote cn) {

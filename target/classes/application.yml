@@ -68,6 +68,9 @@ app:
   demo-data: false
   billing:
     mode: demo
+    # Accounts that owners pay invoices into by bank transfer, shown in the pay dialog (bank, name, number).
+    # None: bank transfer is not offered.
+    transfer-accounts: []
   telegram:
     # From @BotFather. Empty: Telegram is off (businesses can't connect, nothing is sent).
     bot-token: ${TELEGRAM_BOT_TOKEN:}

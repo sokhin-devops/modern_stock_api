@@ -38,7 +38,8 @@ public class BusinessContextFilter extends OncePerRequestFilter {
             List.of("/auth/", "/me/", "/public/", "/admin/", "/swagger-ui", "/v3/api-docs", "/actuator");
 
     private static final String MEMBERSHIP_SQL = """
-            SELECT m.id, m.branch_id, r.code, b.status, COALESCE(string_agg(p.code, ','), '') AS perms
+            SELECT m.id, m.branch_id, r.code, b.status, COALESCE(string_agg(p.code, ','), '') AS perms,
+                   (SELECT string_agg(mb.branch_id::text, ',') FROM member_branches mb WHERE mb.member_id = m.id) AS more
             FROM business_members m
             JOIN businesses b ON b.id = m.business_id
             JOIN users u ON u.id = m.user_id AND u.status = 'ACTIVE'
@@ -49,7 +50,8 @@ public class BusinessContextFilter extends OncePerRequestFilter {
             GROUP BY m.id, m.branch_id, r.code, b.status
             """;
 
-    private record Membership(Long memberId, Long branchId, String roleCode, String businessStatus, Set<String> permissions) {
+    /** branchIds: the member's branches, or null for all branches. */
+    private record Membership(Long memberId, Set<Long> branchIds, String roleCode, String businessStatus, Set<String> permissions) {
     }
 
     private final JdbcTemplate jdbc;
@@ -91,7 +93,7 @@ public class BusinessContextFilter extends OncePerRequestFilter {
             SecurityContextHolder.setContext(securityContext);
 
             BusinessContext.set(new BusinessContext.Context(businessId, userId, m.memberId(), m.roleCode(),
-                    m.branchId(), selectedBranchId, m.permissions()));
+                    m.branchIds(), selectedBranchId, m.permissions()));
         } catch (ApiException e) {
             problems.write(request, response, e);
             return;
@@ -106,7 +108,7 @@ public class BusinessContextFilter extends OncePerRequestFilter {
     private Membership loadMembership(Long businessId, Long userId) {
         List<Membership> rows = jdbc.query(MEMBERSHIP_SQL, (rs, i) -> new Membership(
                 rs.getLong(1),
-                (Long) rs.getObject(2),
+                branchIds((Long) rs.getObject(2), rs.getString(6)),
                 rs.getString(3),
                 rs.getString(4),
                 new HashSet<>(Arrays.stream(rs.getString(5).split(",")).filter(s -> !s.isBlank()).toList())),
@@ -121,14 +123,34 @@ public class BusinessContextFilter extends OncePerRequestFilter {
         return m;
     }
 
-    /** A member with one branch always works in it; others pick a branch or "all" (null). */
+    /** The first branch and the others from member_branches, or null for all branches. */
+    private static Set<Long> branchIds(Long first, String more) {
+        if (first == null) {
+            return null;
+        }
+        Set<Long> ids = new HashSet<>();
+        ids.add(first);
+        if (more != null) {
+            Arrays.stream(more.split(",")).map(Long::valueOf).forEach(ids::add);
+        }
+        return Set.copyOf(ids);
+    }
+
+    /**
+     * A member with one branch always works in it; a member with several picks one of them or "all" (all of theirs,
+     * null); others pick any branch or "all".
+     */
     private Long resolveBranch(String header, Membership m, Long businessId) {
         boolean all = header == null || header.isBlank() || "all".equalsIgnoreCase(header.trim());
-        if (m.branchId() != null) {
-            if (!all && !m.branchId().equals(parseId(header, "BRANCH_ACCESS_DENIED"))) {
+        if (m.branchIds() != null) {
+            if (all) {
+                return m.branchIds().size() == 1 ? m.branchIds().iterator().next() : null;
+            }
+            Long picked = parseId(header, "BRANCH_ACCESS_DENIED");
+            if (!m.branchIds().contains(picked)) {
                 throw ApiException.forbidden("BRANCH_ACCESS_DENIED");
             }
-            return m.branchId();
+            return picked;
         }
         if (all) {
             return null;

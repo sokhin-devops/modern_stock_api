@@ -30,7 +30,7 @@ public class FileController {
     @GetMapping("/public/files/{folder}/{name:.+}")
     public ResponseEntity<Resource> file(@PathVariable String folder, @PathVariable String name) {
         String stored = folder + "/" + name;
-        Path path = files.resolve(stored).filter(Files::isRegularFile).orElse(null);
+        Path path = FileStorage.PRIVATE_TRANSFERS.equals(folder) ? null : files.resolve(stored).filter(Files::isRegularFile).orElse(null);
         if (path == null) {
             return ResponseEntity.notFound().build();
         }

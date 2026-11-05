@@ -19,6 +19,8 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
             and i.status = com.modernstock.member.Invitation.Status.PENDING and i.expiresAt > CURRENT_TIMESTAMP""")
     long countOpen(Long businessId);
 
+    long countByBusinessIdAndRoleIdAndStatus(Long businessId, Long roleId, Invitation.Status status);
+
     @Query("""
             select i from Invitation i where lower(i.email) = lower(:email)
             and i.status = com.modernstock.member.Invitation.Status.PENDING and i.expiresAt > CURRENT_TIMESTAMP""")

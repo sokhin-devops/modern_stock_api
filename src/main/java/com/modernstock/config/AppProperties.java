@@ -20,7 +20,17 @@ public record AppProperties(
     public record Cors(List<String> allowedOrigins) {
     }
 
-    public record Billing(String mode) {
+    /**
+     * mode=demo turns on the demo payment buttons; transferAccounts are where owners send bank transfers (none = no
+     * transfers); company is who issues the billing invoices (printed on them).
+     */
+    public record Billing(String mode, List<TransferAccount> transferAccounts, Company company) {
+    }
+
+    public record Company(String name, String address, String phone, String email, String vatTin) {
+    }
+
+    public record TransferAccount(String bank, String name, String number) {
     }
 
     /**

@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.Branch;
 import com.modernstock.business.BranchRepository;
 import com.modernstock.business.BranchScope;
@@ -28,8 +29,8 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductRepository;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -104,6 +105,7 @@ public class StockCountService {
     private final StockMovementRepository movements;
     private final DocumentNumberService numbers;
     private final BranchScope scope;
+    private final ActivityService activity;
 
     @Transactional(readOnly = true)
     public PageResponse<CountResponse> list(StockCount.Status status, Pageable pageable) {
@@ -250,7 +252,10 @@ public class StockCountService {
                 });
         c.setStatus(StockCount.Status.POSTED);
         c.setPostedAt(Instant.now());
-        return toResponse(c, true);
+        CountResponse posted = toResponse(c, true);
+        activity.record("COUNT_POSTED", "STOCK_COUNT", c.getId(), c.getNumber(), c.getBranchId(), null,
+                ActivityService.values("differences", posted.differences(), "value", posted.differenceValue()));
+        return posted;
     }
 
     /** A draft count can be thrown away; nothing in stock changed yet. */
@@ -308,6 +313,9 @@ public class StockCountService {
                 : branches.findById(c.getBranchId()).map(Branch::getNameEn).orElse("");
         List<CountLineResponse> lines = new ArrayList<>();
         if (withLines) {
+            // The count is in one branch, so a line names only its warehouse
+            Map<Long, String> warehouseNames = warehouses.findAllById(c.getItems().stream().map(StockCountItem::getWarehouseId)
+                    .collect(Collectors.toSet())).stream().collect(Collectors.toMap(Warehouse::getId, Warehouse::getNameEn));
             Map<Long, Product> byId = productService.byIds(c.getItems().stream().map(StockCountItem::getProductId).toList());
             Map<Long, String> symbols = productService.unitSymbols();
             for (StockCountItem i : c.getItems()) {
@@ -316,7 +324,7 @@ public class StockCountService {
                 BigDecimal value = diff == null ? null : diff.multiply(i.getUnitCost()).setScale(2, RoundingMode.HALF_UP);
                 lines.add(new CountLineResponse(i.getId(), i.getProductId(), p == null ? "" : p.getNameEn(), p == null ? null : p.getNameKm(),
                         p == null ? "" : p.getSku(), p == null ? "" : symbols.get(p.getBaseUnitId()), i.getWarehouseId(),
-                        labels.get(i.getWarehouseId()), hidden ? null : i.getSystemQty(), i.getCountedQty(), hidden ? null : diff,
+                        warehouseNames.get(i.getWarehouseId()), hidden ? null : i.getSystemQty(), i.getCountedQty(), hidden ? null : diff,
                         hidden ? null : value, moved.contains(i.getId()), p == null ? List.of() : codes(p)));
             }
         }

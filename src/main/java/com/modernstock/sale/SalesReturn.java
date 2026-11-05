@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.modernstock.common.TenantEntity;
+import com.modernstock.money.Payment;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -19,14 +20,17 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Goods a customer brought back, from a sales receipt or an invoice (FR-3.12). */
+/**
+ * Goods a customer brought back, from a sales receipt or an invoice (FR-3.12). Posted at once by someone who may void
+ * sales; a Cashier's return waits for approval (section 5) and moves nothing until then.
+ */
 @Getter
 @Setter
 @Entity
 @Table(name = "sales_returns")
 public class SalesReturn extends TenantEntity {
 
-    public enum Status { POSTED, VOID }
+    public enum Status { WAITING_APPROVAL, POSTED, REJECTED, VOID }
 
     @Column(nullable = false)
     private String number;
@@ -51,6 +55,14 @@ public class SalesReturn extends TenantEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.POSTED;
+    /** A requested return keeps how the customer is paid back, done when it is approved. */
+    @Enumerated(EnumType.STRING)
+    private Payment.Method refundMethod;
+    @Enumerated(EnumType.STRING)
+    private Payment.Currency refundCurrency;
+    /** Who approved or rejected a requested return, and when. */
+    private Long reviewedBy;
+    private Instant reviewedAt;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "return_id", nullable = false)

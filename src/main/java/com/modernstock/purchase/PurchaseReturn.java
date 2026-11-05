@@ -26,7 +26,7 @@ import lombok.Setter;
 @Table(name = "purchase_returns")
 public class PurchaseReturn extends TenantEntity {
 
-    public enum Status { POSTED, VOID }
+    public enum Status { WAITING_APPROVAL, POSTED, REJECTED, VOID }
 
     @Column(nullable = false)
     private String number;
@@ -47,6 +47,9 @@ public class PurchaseReturn extends TenantEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.POSTED;
+    /** Who approved or rejected a prepared return, and when. */
+    private Long reviewedBy;
+    private Instant reviewedAt;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "return_id", nullable = false)

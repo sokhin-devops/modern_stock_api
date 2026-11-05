@@ -13,11 +13,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
+import com.modernstock.auth.User;
+import com.modernstock.auth.UserRepository;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
+import com.modernstock.common.CurrentUser;
 import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.PageResponse;
@@ -42,7 +46,8 @@ import lombok.RequiredArgsConstructor;
  * Purchase returns and supplier credits (FR-2.7, FR-2.8, PLAIN.md 11.7). A return comes from a goods receipt, at most
  * what was received minus what went back before. The goods leave stock from the batch they came in with (expired ones
  * too), and a supplier credit is made for them at the price they were received at: first used on the receipt's bill,
- * then refunded by the supplier or kept to pay later bills.
+ * then refunded by the supplier or kept to pay later bills. A Stock keeper only prepares a return (section 5): it waits,
+ * moving nothing, until someone who manages bills posts it (as if made now) or rejects it.
  */
 @Service
 @RequiredArgsConstructor
@@ -84,8 +89,11 @@ public class PurchaseReturnService {
                                          BigDecimal left, SupplierCredit.Status status, String reason) {
     }
 
-    public record PurchaseReturnResponse(Long id, String number, Long goodsReceiptId, Long supplierId, String supplierName,
-                                         Instant returnedAt, BigDecimal total, String reason,
+    public record PurchaseReturnResponse(Long id, String number, Long goodsReceiptId, String goodsReceiptNumber, Long supplierId,
+                                         String supplierName, Instant returnedAt, BigDecimal total, String reason,
+                                         PurchaseReturn.Status status,
+                                         @Schema(description = "Who made it (for a prepared one: the Stock keeper)") String createdByName,
+                                         String reviewedByName, Instant reviewedAt,
                                          List<PurchaseReturnLineResponse> lines, SupplierCreditResponse credit) {
     }
 
@@ -115,6 +123,8 @@ public class PurchaseReturnService {
     private final CurrencyService currency;
     private final DocumentNumberService numbers;
     private final BranchScope scope;
+    private final UserRepository users;
+    private final ActivityService activity;
 
     @Transactional(readOnly = true)
     public PurchaseReturnable returnable(Long goodsReceiptId) {
@@ -136,6 +146,10 @@ public class PurchaseReturnService {
 
     @Transactional
     public PurchaseReturnResponse create(PurchaseReturnRequest req) {
+        boolean canPost = BusinessContext.has("bill:manage");
+        if (!canPost && !BusinessContext.has("purchase_return:prepare")) {
+            throw ApiException.forbidden("PERMISSION_DENIED");
+        }
         GoodsReceipt g = postedReceipt(req.goodsReceiptId());
         BusinessContext.branchForWrite(g.getBranchId()); // a read-only branch takes no new work
         Map<Long, GoodsReceiptItem> byId = new HashMap<>();
@@ -177,8 +191,57 @@ public class PurchaseReturnService {
             r.getItems().add(item);
         }
         r.setTotal(r.getItems().stream().map(PurchaseReturnItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+        if (!canPost) {
+            // Money is for those who manage bills: a prepared return only says what goes back
+            r.setStatus(PurchaseReturn.Status.WAITING_APPROVAL);
+            returns.save(r);
+            return toResponse(r, null);
+        }
         returns.save(r);
+        return toResponse(r, post(r, g, req.refund()));
+    }
 
+    /** A Stock keeper's return, posted now: the goods leave stock and the supplier credit is used on the bill first. */
+    @Transactional
+    public PurchaseReturnResponse approve(Long id) {
+        PurchaseReturn r = waiting(id);
+        GoodsReceipt g = postedReceipt(r.getGoodsReceiptId()); // refused if the receipt was voided meanwhile
+        BusinessContext.branchForWrite(g.getBranchId());
+        r.setStatus(PurchaseReturn.Status.POSTED);
+        r.setReturnedAt(Instant.now());
+        reviewed(r);
+        SupplierCredit sc = post(r, g, null);
+        activity.record("PURCHASE_RETURN_APPROVED", "PURCHASE_RETURN", r.getId(), r.getNumber(), r.getBranchId(), null,
+                ActivityService.values("total", r.getTotal()));
+        return toResponse(r, sc);
+    }
+
+    @Transactional
+    public PurchaseReturnResponse reject(Long id) {
+        PurchaseReturn r = waiting(id);
+        r.setStatus(PurchaseReturn.Status.REJECTED);
+        reviewed(r);
+        activity.record("PURCHASE_RETURN_REJECTED", "PURCHASE_RETURN", r.getId(), r.getNumber(), r.getBranchId(), null,
+                ActivityService.values("total", r.getTotal()));
+        return toResponse(r, null);
+    }
+
+    private PurchaseReturn waiting(Long id) {
+        PurchaseReturn r = returns.get(id);
+        BusinessContext.requireBranch(r.getBranchId());
+        if (r.getStatus() != PurchaseReturn.Status.WAITING_APPROVAL) {
+            throw ApiException.rule("WRONG_STATUS", r.getStatus());
+        }
+        return r;
+    }
+
+    private static void reviewed(PurchaseReturn r) {
+        r.setReviewedBy(CurrentUser.idOrNull());
+        r.setReviewedAt(Instant.now());
+    }
+
+    /** What a posted return does: the goods leave stock, and a supplier credit is used on the bill, then refunded if asked. */
+    private SupplierCredit post(PurchaseReturn r, GoodsReceipt g, SupplierRefundRequest refund) {
         // Out of the batch each line came in with; in product order, like every stock change, so locks never cross
         StockService.Ref received = new StockService.Ref(PurchaseService.GRN_REF, g.getId());
         StockService.Ref ref = new StockService.Ref(REF, r.getId());
@@ -189,23 +252,23 @@ public class PurchaseReturnService {
 
         SupplierCredit sc = null;
         if (r.getTotal().signum() > 0) {
-            sc = newCredit(r.getBranchId(), r.getSupplierId(), r.getTotal(), req.reason());
+            sc = newCredit(r.getBranchId(), r.getSupplierId(), r.getTotal(), r.getReason());
             sc.setPurchaseReturnId(r.getId());
             credits.save(sc);
             Bill bill = bills.findByGoodsReceiptId(g.getId()).orElse(null);
             if (bill != null && bill.getStatus() != Bill.Status.VOID && bill.open().signum() > 0) {
                 apply(sc, bill, sc.left().min(bill.open()));
             }
-            if (req.refund() != null && sc.left().signum() > 0) {
-                refund(sc, req.refund().method(), req.refund().currency(), sc.left());
+            if (refund != null && sc.left().signum() > 0) {
+                refund(sc, refund.method(), refund.currency(), sc.left());
             }
         }
-        return toResponse(r, sc);
+        return sc;
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<PurchaseReturnResponse> list(Long supplierId, Pageable pageable) {
-        return PageResponse.of(returns.search(scope.branchIds(), supplierId, pageable),
+    public PageResponse<PurchaseReturnResponse> list(Long supplierId, PurchaseReturn.Status status, Pageable pageable) {
+        return PageResponse.of(returns.search(scope.branchIds(), supplierId, status, pageable),
                 r -> toResponse(r, credits.findByPurchaseReturnId(r.getId()).stream().findFirst().orElse(null)));
     }
 
@@ -328,12 +391,18 @@ public class PurchaseReturnService {
     private PurchaseReturnResponse toResponse(PurchaseReturn r, SupplierCredit sc) {
         Map<Long, String> symbols = products.unitSymbols();
         Map<Long, Product> byId = products.byIds(r.getItems().stream().map(PurchaseReturnItem::getProductId).toList());
-        return new PurchaseReturnResponse(r.getId(), r.getNumber(), r.getGoodsReceiptId(), r.getSupplierId(),
-                supplierName(r.getSupplierId()), r.getReturnedAt(), r.getTotal(), r.getReason(),
+        return new PurchaseReturnResponse(r.getId(), r.getNumber(), r.getGoodsReceiptId(),
+                receipts.findById(r.getGoodsReceiptId()).map(GoodsReceipt::getNumber).orElse(null), r.getSupplierId(),
+                supplierName(r.getSupplierId()), r.getReturnedAt(), r.getTotal(), r.getReason(), r.getStatus(),
+                userName(r.getCreatedBy()), userName(r.getReviewedBy()), r.getReviewedAt(),
                 r.getItems().stream().map(i -> new PurchaseReturnLineResponse(i.getProductId(), byId.get(i.getProductId()).getNameEn(),
                         symbols.get(i.getUnitId()), i.getQty(), i.getUnitCost(), i.getAmount(), i.getBatchNo(),
                         i.getExpiryDate())).toList(),
                 sc == null ? null : toResponse(sc));
+    }
+
+    private String userName(Long id) {
+        return id == null ? null : users.findById(id).map(User::getFullName).orElse(null);
     }
 
     private SupplierCreditResponse toResponse(SupplierCredit sc) {

@@ -18,4 +18,6 @@ public interface BusinessMemberRepository extends JpaRepository<BusinessMember, 
     long countByBusinessIdAndRoleIdAndStatusAndIdNot(Long businessId, Long roleId, BusinessMember.Status status, Long id);
 
     long countByBusinessIdAndStatus(Long businessId, BusinessMember.Status status);
+
+    long countByBusinessIdAndRoleIdAndStatusNot(Long businessId, Long roleId, BusinessMember.Status status);
 }

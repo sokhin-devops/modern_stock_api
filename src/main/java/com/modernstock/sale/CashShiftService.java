@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.auth.UserRepository;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
@@ -81,6 +82,7 @@ public class CashShiftService {
     private final UserRepository users;
     private final BranchScope scope;
     private final ApplicationEventPublisher events;
+    private final ActivityService activity;
 
     @Transactional
     public CashShiftResponse open(OpenShiftRequest req) {
@@ -141,6 +143,9 @@ public class CashShiftService {
         if (short_(s.getCountedUsd(), s.getExpectedUsd()) || short_(s.getCountedKhr(), s.getExpectedKhr())) {
             events.publishEvent(new TelegramAlerts.ShiftShort(BusinessContext.businessId(), s.getId()));
         }
+        activity.changed("SHIFT_CLOSED", "CASH_SHIFT", s.getId(), users.findById(s.getCashierId()).map(u -> u.getFullName()).orElse(null),
+                s.getBranchId(), ActivityService.values("cashUsd", s.getExpectedUsd(), "cashKhr", s.getExpectedKhr()),
+                ActivityService.values("cashUsd", s.getCountedUsd(), "cashKhr", s.getCountedKhr()));
         return toResponse(s);
     }
 

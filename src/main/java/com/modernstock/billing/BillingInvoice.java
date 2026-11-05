@@ -13,14 +13,14 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/** The platform's invoice to a business (SUB-…, USD), for a new subscription, a renewal or an upgrade (FR-10.7). */
+/** The platform's invoice to a business (SUB-…, USD), for a new subscription, a renewal, an upgrade or an add-on (FR-10.7). */
 @Getter
 @Setter
 @Entity
 @Table(name = "billing_invoices")
 public class BillingInvoice extends BaseEntity {
 
-    public enum Kind { NEW, RENEWAL, UPGRADE }
+    public enum Kind { NEW, RENEWAL, UPGRADE, ADDON }
 
     public enum Status { OPEN, PAID, VOID }
 
@@ -43,4 +43,11 @@ public class BillingInvoice extends BaseEntity {
     @Column(nullable = false)
     private Status status = Status.OPEN;
     private Instant paidAt;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Subscription.Cycle billingCycle = Subscription.Cycle.MONTHLY;
+    /** An ADDON invoice: the add-on it starts. */
+    private Long subscriptionAddonId;
+    /** What the amount is for, e.g. "Pro, yearly + Extra branch". */
+    private String description;
 }

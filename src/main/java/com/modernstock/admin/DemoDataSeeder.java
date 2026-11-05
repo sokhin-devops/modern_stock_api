@@ -114,7 +114,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     private void seed(Business b, User owner) {
         businesses.onboard(new OnboardingRequest(
                 new BranchRequest("TK", "Toul Kork", "ទួលគោក", "St. 315, Toul Kork", "012 345 678", "Phnom Penh"),
-                new BigDecimal("4100"), false, 100));
+                new BigDecimal("4100"), false, 100, "OTHER", false));
         var main = branches.list().get(0);
         branches.addWarehouse(main.id(), new WarehouseRequest("Back store", "ឃ្លាំងក្រោយ", false, true, true));
         branches.create(new BranchRequest("SS", "Sen Sok", "សែនសុខ", "Street 1986, Sen Sok", "015 222 333", "Phnom Penh"));

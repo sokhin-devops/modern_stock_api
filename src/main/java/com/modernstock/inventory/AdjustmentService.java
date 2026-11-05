@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
@@ -21,8 +22,8 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -78,6 +79,7 @@ public class AdjustmentService {
     }
 
     private final StockAdjustmentRepository adjustments;
+    private final ActivityService activity;
     private final WarehouseRepository warehouses;
     private final ProductService products;
     private final StockService stock;
@@ -132,6 +134,7 @@ public class AdjustmentService {
         adjustments.save(adj);
         if (canPost) {
             post(adj);
+            logPosted("ADJUSTMENT_POSTED", adj);
         }
         return toResponse(adj);
     }
@@ -141,6 +144,7 @@ public class AdjustmentService {
         StockAdjustment adj = waiting(id);
         adj.setStatus(StockAdjustment.Status.POSTED);
         post(adj);
+        logPosted("ADJUSTMENT_APPROVED", adj);
         return toResponse(adj);
     }
 
@@ -148,7 +152,16 @@ public class AdjustmentService {
     public AdjustmentResponse reject(Long id) {
         StockAdjustment adj = waiting(id);
         adj.setStatus(StockAdjustment.Status.REJECTED);
+        logPosted("ADJUSTMENT_REJECTED", adj);
         return toResponse(adj);
+    }
+
+    /** The reason and the value of the stock that came in (+) or went out (-). */
+    private void logPosted(String action, StockAdjustment adj) {
+        BigDecimal value = adj.getItems().stream().map(i -> i.getQtyChange().multiply(i.getUnitCost()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+        activity.record(action, "ADJUSTMENT", adj.getId(), adj.getNumber(), adj.getBranchId(), null,
+                ActivityService.values("reason", adj.getReason().name(), "value", value));
     }
 
     @Transactional(readOnly = true)

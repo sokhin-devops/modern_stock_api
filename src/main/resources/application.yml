@@ -68,6 +68,16 @@ app:
   demo-data: false
   billing:
     mode: demo
+    # Accounts that owners pay invoices into by bank transfer, shown in the pay dialog (bank, name, number).
+    # None: bank transfer is not offered.
+    transfer-accounts: []
+    # Who issues the billing invoices and receipts (printed at the top of them)
+    company:
+      name: ${BILLING_COMPANY_NAME:ModernStock}
+      address: ${BILLING_COMPANY_ADDRESS:}
+      phone: ${BILLING_COMPANY_PHONE:}
+      email: ${BILLING_COMPANY_EMAIL:}
+      vat-tin: ${BILLING_COMPANY_VAT_TIN:}
   telegram:
     # From @BotFather. Empty: Telegram is off (businesses can't connect, nothing is sent).
     bot-token: ${TELEGRAM_BOT_TOKEN:}

@@ -38,7 +38,7 @@ public class PurchaseReturnController {
 
     @Operation(summary = "What can still be sent back from a goods receipt")
     @GetMapping("/goods-receipts/{id}/returnable")
-    @PreAuthorize("hasAuthority('bill:manage')")
+    @PreAuthorize("hasAnyAuthority('bill:manage', 'purchase_return:prepare')")
     public PurchaseReturnable returnable(@PathVariable Long id) {
         return returns.returnable(id);
     }
@@ -47,25 +47,42 @@ public class PurchaseReturnController {
             description = "From a goods receipt: the goods leave stock from the batch they came in with, expired ones too. A "
                     + "supplier credit is made at the received price: used on the receipt's bill first, then refunded by the "
                     + "supplier (refund) or kept for later bills. 422 RETURN_TOO_MANY when more than was received and not yet "
-                    + "returned.")
+                    + "returned (or prepared). Without bill:manage (a Stock keeper with purchase_return:prepare) it waits for "
+                    + "approval, moves nothing, and refund is ignored.")
     @PostMapping("/purchase-returns")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAuthority('bill:manage')")
+    @PreAuthorize("hasAnyAuthority('bill:manage', 'purchase_return:prepare')")
     public PurchaseReturnResponse create(@Valid @RequestBody PurchaseReturnRequest req) {
         return returns.create(req);
     }
 
     @GetMapping("/purchase-returns")
-    @PreAuthorize("hasAuthority('bill:manage')")
+    @PreAuthorize("hasAnyAuthority('bill:manage', 'purchase_return:prepare')")
     public PageResponse<PurchaseReturnResponse> list(@RequestParam(required = false) Long supplierId,
+                                                     @RequestParam(required = false) PurchaseReturn.Status status,
                                                      @ParameterObject Pageable pageable) {
-        return returns.list(supplierId, pageable);
+        return returns.list(supplierId, status, pageable);
     }
 
     @GetMapping("/purchase-returns/{id}")
-    @PreAuthorize("hasAuthority('bill:manage')")
+    @PreAuthorize("hasAnyAuthority('bill:manage', 'purchase_return:prepare')")
     public PurchaseReturnResponse get(@PathVariable Long id) {
         return returns.get(id);
+    }
+
+    @Operation(summary = "Post a prepared return", description = "The goods leave stock now and the supplier credit is used on "
+            + "the bill first; the rest stays as credit. 422 RETURN_RECEIPT_VOID when the receipt was voided meanwhile.")
+    @PostMapping("/purchase-returns/{id}/approve")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnResponse approve(@PathVariable Long id) {
+        return returns.approve(id);
+    }
+
+    @Operation(summary = "Reject a prepared return", description = "Nothing moves; the goods can be prepared again.")
+    @PostMapping("/purchase-returns/{id}/reject")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnResponse reject(@PathVariable Long id) {
+        return returns.reject(id);
     }
 
     @Operation(summary = "A supplier credit by hand", description = "For a price correction; used on bills or refunded later.")

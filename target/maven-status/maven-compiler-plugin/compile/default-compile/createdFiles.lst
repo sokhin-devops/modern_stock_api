@@ -12,6 +12,7 @@ com\modernstock\inventory\StockCount$Status.class
 com\modernstock\money\PaymentResponse.class
 com\modernstock\sale\QuotationService$QuotationRequest.class
 com\modernstock\sale\Quotation$Status.class
+com\modernstock\billing\Addon.class
 com\modernstock\sale\SaleLines.class
 com\modernstock\business\BranchScope.class
 com\modernstock\billing\BillingService$1.class
@@ -47,6 +48,7 @@ com\modernstock\sale\PosService$ReceivePaymentRequest.class
 com\modernstock\business\BusinessContext.class
 com\modernstock\report\StockReportService$Pack.class
 com\modernstock\billing\BillingPayment.class
+com\modernstock\billing\SubscriptionAddon.class
 com\modernstock\notification\TelegramController$TelegramSettings.class
 com\modernstock\sale\Quotation.class
 com\modernstock\report\ReportService$Open.class
@@ -58,6 +60,7 @@ com\modernstock\sale\Invoice$Status.class
 com\modernstock\auth\UserRepository.class
 com\modernstock\sale\ReturnService$CreditRefundRequest.class
 com\modernstock\sale\CashMovementRepository.class
+com\modernstock\business\StarterSets$ProductSeed.class
 com\modernstock\business\BusinessRepository.class
 com\modernstock\sale\CashShiftService$CashShiftResponse.class
 com\modernstock\sale\PosService.class
@@ -76,6 +79,7 @@ com\modernstock\billing\BillingController$InvoiceView.class
 com\modernstock\business\BusinessSetting.class
 com\modernstock\sale\SalePricing.class
 com\modernstock\admin\AdminController.class
+com\modernstock\billing\BillingController$AddonRequest.class
 com\modernstock\purchase\PurchaseService$SupplierPaymentRequest.class
 com\modernstock\sale\SalesReturnItem$Condition.class
 com\modernstock\report\ReportService$1Sold.class
@@ -93,6 +97,7 @@ com\modernstock\inventory\StockAdjustment$Kind.class
 com\modernstock\billing\BillingController.class
 com\modernstock\sale\SalesOrderService$OrderLineResponse.class
 com\modernstock\sale\SalesController.class
+com\modernstock\billing\BillingController$MyAddon.class
 com\modernstock\auth\User$Status.class
 com\modernstock\report\DashboardController.class
 com\modernstock\auth\AuthService$TokenRequest.class
@@ -143,10 +148,13 @@ com\modernstock\report\ReportService$ExpenseRow.class
 com\modernstock\sale\PosService$SalesReceiptResponse.class
 com\modernstock\business\BusinessController.class
 com\modernstock\purchase\PurchaseOrderItem.class
+com\modernstock\activity\ActivityController.class
 com\modernstock\report\ReportService$SalesReport.class
 com\modernstock\money\PaymentService$PaymentLine.class
+com\modernstock\business\StarterSets.class
 com\modernstock\currency\ExchangeRate.class
 com\modernstock\expense\ExpenseCategoryRepository.class
+com\modernstock\billing\BillingController$AddonView.class
 com\modernstock\sale\QuotationItem.class
 com\modernstock\report\MoneyReportService$VatMonth.class
 com\modernstock\catalog\BranchReorderLevelRepository.class
@@ -166,12 +174,15 @@ com\modernstock\business\BusinessService.class
 com\modernstock\business\SettingsService.class
 com\modernstock\publicsite\PublicController$ContactRequest.class
 com\modernstock\sale\ReturnService.class
+com\modernstock\billing\BillingController$KeepRequest.class
 com\modernstock\purchase\Bill.class
 com\modernstock\purchase\SupplierCredit.class
 com\modernstock\inventory\StockCountService$CountedLine.class
 com\modernstock\common\TenantLine.class
 com\modernstock\money\Payment$Direction.class
+com\modernstock\activity\ActivityService$ActivityRow.class
 com\modernstock\inventory\StockTransfer$Status.class
+com\modernstock\business\StarterSets$CategorySeed.class
 com\modernstock\catalog\ProductService.class
 com\modernstock\notification\MailService.class
 com\modernstock\report\ReportService$AbcReport.class
@@ -180,6 +191,7 @@ com\modernstock\member\Invitation$Method.class
 com\modernstock\billing\PaymentGateway.class
 com\modernstock\money\PaymentResponse$AllocationLine.class
 com\modernstock\sale\Invoice$Type.class
+com\modernstock\member\RoleService$PermissionResponse.class
 com\modernstock\sale\SaleItem.class
 com\modernstock\report\DashboardService$DashboardResponse.class
 com\modernstock\catalog\CategoryRepository.class
@@ -193,6 +205,7 @@ com\modernstock\notification\TelegramLinkService.class
 com\modernstock\report\ReportService$SalesBy.class
 com\modernstock\auth\User.class
 com\modernstock\business\BranchService$BranchResponse.class
+com\modernstock\business\BusinessController$1.class
 com\modernstock\report\StockReportService$CountReport.class
 com\modernstock\sale\Delivery$Status.class
 com\modernstock\purchase\BillRepository.class
@@ -217,6 +230,7 @@ com\modernstock\common\DocumentNumberService.class
 com\modernstock\member\Invitation$Status.class
 com\modernstock\catalog\ProductService$BranchReorderRequest.class
 com\modernstock\inventory\StockCountService$CountLineResponse.class
+com\modernstock\activity\ActivityService.class
 com\modernstock\catalog\ImportService$ProductRow.class
 com\modernstock\report\DashboardService$TodaySales.class
 com\modernstock\report\ReportService$AbcRow.class
@@ -230,8 +244,10 @@ com\modernstock\auth\AuthService$LoginRequest.class
 com\modernstock\money\PaymentService.class
 com\modernstock\inventory\StockCountService$CountedRequest.class
 com\modernstock\business\BusinessService$CreateBusinessRequest.class
+com\modernstock\billing\AddonRepository.class
 com\modernstock\sale\SalesReturn$Status.class
 com\modernstock\partner\CustomerRepository.class
+com\modernstock\member\PermissionRepository.class
 com\modernstock\sale\SalesOrderService$DeliverLineRequest.class
 com\modernstock\report\MoneyReportService$StatementLine.class
 com\modernstock\report\ReportService$CustomerDebtRow.class
@@ -246,9 +262,11 @@ com\modernstock\expense\ExpenseCategory.class
 com\modernstock\report\StockReportService$SlowReport.class
 com\modernstock\inventory\StockAdjustmentItem.class
 com\modernstock\purchase\PurchaseService$QuickLineRequest.class
+com\modernstock\business\StarterSets$UnitSeed.class
 com\modernstock\member\InvitationService$MyInvitation.class
 com\modernstock\report\StockReportService$ReorderRow.class
 com\modernstock\admin\DemoDataSeeder.class
+com\modernstock\member\RoleService$RoleRequest.class
 com\modernstock\sale\SalesOrderService$QuickOrderRequest.class
 com\modernstock\common\Dates.class
 com\modernstock\expense\ExpenseService.class
@@ -258,6 +276,7 @@ com\modernstock\purchase\PurchaseService$GoodsReceiptLineRequest.class
 com\modernstock\auth\UserToken.class
 com\modernstock\inventory\StockService.class
 com\modernstock\inventory\StockMovement$Type.class
+com\modernstock\member\RoleService.class
 com\modernstock\money\Payment$Currency.class
 com\modernstock\inventory\StockMovement.class
 com\modernstock\catalog\CatalogController$UnitRequest.class
@@ -270,6 +289,7 @@ com\modernstock\sale\PosService$DeliveryResponse.class
 com\modernstock\purchase\PurchaseOrder$Status.class
 com\modernstock\report\AlertService.class
 com\modernstock\sale\ReturnService$ReturnRequest.class
+com\modernstock\admin\AdminManageController$TransferRow.class
 com\modernstock\inventory\TransferService$TransferLineRequest.class
 com\modernstock\catalog\CatalogController$UnitResponse.class
 com\modernstock\publicsite\ContactMessageRepository.class
@@ -292,9 +312,11 @@ com\modernstock\sale\SalesReturnItem.class
 com\modernstock\business\BusinessMemberRepository.class
 com\modernstock\member\Permission.class
 com\modernstock\report\StockReportService$ExpiryRow.class
+com\modernstock\admin\AdminManageController$MessageStatus.class
 com\modernstock\billing\BillingInvoice$Status.class
 com\modernstock\purchase\PurchaseReturn$Status.class
 com\modernstock\purchase\Bill$Status.class
+com\modernstock\activity\ActivityService$1.class
 com\modernstock\billing\BillingPayment$Status.class
 com\modernstock\expense\ExpenseService$ExpenseResponse.class
 com\modernstock\expense\ExpenseService$ExpenseRequest.class
@@ -315,11 +337,14 @@ com\modernstock\expense\ExpenseRepository.class
 com\modernstock\auth\AuthService$ResetPasswordRequest.class
 com\modernstock\auth\RefreshTokenRepository.class
 com\modernstock\common\Messages.class
+com\modernstock\admin\AdminManageController$PlanUpdate.class
+com\modernstock\billing\PlanLimits$BranchChoice.class
 com\modernstock\inventory\InventoryController.class
 com\modernstock\billing\BillingInvoice.class
 com\modernstock\business\BusinessTenantResolver.class
 com\modernstock\report\DashboardService$Waiting.class
 com\modernstock\account\AccountController$MyBusinessResponse.class
+com\modernstock\admin\AdminManageController$AccountRow.class
 com\modernstock\report\AlertService$Alerts.class
 com\modernstock\auth\AuthService.class
 com\modernstock\sale\SalePricing$Priced.class
@@ -348,6 +373,7 @@ com\modernstock\purchase\PurchaseService$QuickPurchaseRequest.class
 com\modernstock\catalog\ProductService$BranchPriceRequest.class
 com\modernstock\catalog\ProductService$ProductUnitRequest.class
 com\modernstock\purchase\PurchaseService$BillResponse.class
+com\modernstock\billing\SubscriptionAddonRepository.class
 com\modernstock\catalog\ProductService$ProductUnitResponse.class
 com\modernstock\member\Role.class
 com\modernstock\inventory\TransferService$TransferResponse.class
@@ -382,6 +408,7 @@ com\modernstock\catalog\CatalogController$CategoryResponse.class
 com\modernstock\billing\PlanLimits.class
 com\modernstock\inventory\StockTransfer$Kind.class
 com\modernstock\money\Payment$Status.class
+com\modernstock\business\StarterSets$StarterSet.class
 com\modernstock\publicsite\FileController.class
 com\modernstock\report\StockReportService.class
 com\modernstock\common\BaseEntity.class
@@ -399,6 +426,7 @@ com\modernstock\sale\SaleLines$LineRequest.class
 com\modernstock\catalog\ImportService.class
 com\modernstock\billing\EntitlementService$1.class
 com\modernstock\sale\CashShiftService$OpenShiftRequest.class
+com\modernstock\admin\AdminManageController$RejectRequest.class
 com\modernstock\publicsite\PublicController.class
 com\modernstock\inventory\StockController.class
 com\modernstock\report\StockReportService$CountRow.class
@@ -411,14 +439,19 @@ com\modernstock\partner\PartnerController$CustomerResponse.class
 com\modernstock\sale\PosService$VoidRequest.class
 com\modernstock\config\AppProperties$Telegram.class
 com\modernstock\currency\CurrencyService$Rate.class
+com\modernstock\admin\AdminManageController$AddonUpdate.class
 com\modernstock\catalog\ImportController.class
 com\modernstock\inventory\StockCountService$RecountRequest.class
 com\modernstock\purchase\PurchaseReturnService$SupplierRefundRequest.class
 com\modernstock\expense\Expense$Status.class
 com\modernstock\sale\PosService$SaleLineResponse.class
+com\modernstock\admin\AdminManageController$MessageRow.class
 com\modernstock\sale\PosService$CartItem.class
 com\modernstock\money\AllocationRepository.class
+com\modernstock\billing\BillingReminders.class
 com\modernstock\purchase\PurchaseReturnService$PurchaseReturnRequest.class
+com\modernstock\billing\BillingController$KeepResponse.class
+com\modernstock\billing\SubscriptionAddon$Status.class
 com\modernstock\config\AppProperties$Billing.class
 com\modernstock\config\AppProperties$Cors.class
 com\modernstock\inventory\StockMovementRepository.class
@@ -428,6 +461,7 @@ com\modernstock\sale\ReturnController.class
 com\modernstock\notification\DailySummaryService.class
 com\modernstock\sale\ReturnService$ReturnResponse.class
 com\modernstock\sale\SalePricing$Line.class
+com\modernstock\billing\PlanLimits$MemberChoice.class
 com\modernstock\catalog\Unit.class
 com\modernstock\sale\PosService$CheckoutRequest.class
 com\modernstock\config\WebConfig.class
@@ -437,7 +471,9 @@ com\modernstock\sale\OrderController.class
 com\modernstock\publicsite\ContactMessage.class
 com\modernstock\purchase\GoodsReceiptItem.class
 com\modernstock\sale\SaleDocuments.class
+com\modernstock\member\RoleController.class
 com\modernstock\business\BranchService.class
+com\modernstock\admin\AdminManageController.class
 com\modernstock\sale\SaleLines$LineResponse.class
 com\modernstock\sale\SalesReceipt.class
 com\modernstock\business\BusinessMember$Status.class
@@ -468,6 +504,7 @@ com\modernstock\sale\SalesOrderService$SalesOrderRequest.class
 com\modernstock\business\BranchService$BranchRequest.class
 com\modernstock\inventory\StockBatch.class
 com\modernstock\report\DashboardService.class
+com\modernstock\admin\AdminManageController$PlanRow.class
 com\modernstock\notification\TelegramAlerts$ShiftShort.class
 com\modernstock\purchase\PurchaseService$GoodsReceiptRequest.class
 com\modernstock\money\Payment.class
@@ -477,6 +514,7 @@ com\modernstock\report\ReportService$SupplierDebtReport.class
 com\modernstock\inventory\StockController$BatchRow.class
 com\modernstock\member\MemberService$LinkResponse.class
 com\modernstock\partner\PartnerController$CustomerRequest.class
+com\modernstock\config\AppProperties$TransferAccount.class
 com\modernstock\inventory\StockController$StockSummary.class
 com\modernstock\business\Business$Status.class
 com\modernstock\money\Payment$Method.class
@@ -489,3 +527,4 @@ com\modernstock\report\StockReportService$SlowRow.class
 com\modernstock\notification\TelegramAlerts$Text.class
 com\modernstock\report\AlertService$Kind.class
 com\modernstock\purchase\PurchaseService$PoLineResponse.class
+com\modernstock\admin\AdminManageController$AddonRow.class

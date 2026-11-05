@@ -26,7 +26,8 @@ import lombok.RequiredArgsConstructor;
 public class AlertService {
 
     public enum Kind {
-        PAYMENT_DUE, EXPIRED, OVERDUE_BILLS, TRIAL_ENDING, LOW_STOCK, EXPIRING_30, OVERDUE_INVOICES, APPROVALS, TO_RECEIVE, COUNTS_OPEN, COUNTS_TO_APPROVE,
+        PAYMENT_DUE, EXPIRED, OVERDUE_BILLS, TRIAL_ENDING, LOW_STOCK, EXPIRING_30, OVERDUE_INVOICES, APPROVALS, TO_RECEIVE, COUNTS_OPEN, COUNTS_TO_APPROVE, RETURNS_TO_APPROVE,
+        PURCHASE_RETURNS_TO_APPROVE, RENEWAL_SOON,
         EXPIRING_60, EXPIRING_90
     }
 
@@ -79,6 +80,8 @@ public class AlertService {
             add(list, Kind.TO_RECEIVE, Level.INFO, waiting.transfersToReceive());
             add(list, Kind.COUNTS_OPEN, Level.INFO, waiting.countsInProgress());
             add(list, Kind.COUNTS_TO_APPROVE, Level.INFO, waiting.countsToApprove());
+            add(list, Kind.RETURNS_TO_APPROVE, Level.INFO, waiting.returnsToApprove());
+            add(list, Kind.PURCHASE_RETURNS_TO_APPROVE, Level.INFO, waiting.purchaseReturnsToApprove());
         }
         if (ReportScope.money()) {
             Map<String, Object> overdue = jdbc.queryForMap("""
@@ -95,10 +98,13 @@ public class AlertService {
             Map<String, Object> billing = jdbc.queryForMap("""
                     select (select count(*) from billing_invoices i where i.business_id = :business and i.status = 'OPEN') as open,
                            (select count(*) from subscriptions s where s.business_id = :business and s.status = 'TRIALING'
-                              and not s.subscribed and s.trial_ends_at < now() + interval '7 days') as trial_ending
+                              and not s.subscribed and s.trial_ends_at < now() + interval '7 days') as trial_ending,
+                           (select count(*) from subscriptions s where s.business_id = :business and s.status = 'ACTIVE'
+                              and not s.cancel_at_period_end and s.current_period_end < now() + interval '7 days') as renewal_soon
                     """, p);
             add(list, Kind.PAYMENT_DUE, Level.DANGER, billing.get("open"));
             add(list, Kind.TRIAL_ENDING, Level.WARN, billing.get("trial_ending"));
+            add(list, Kind.RENEWAL_SOON, Level.INFO, billing.get("renewal_soon"));
         }
         list.sort((a, b) -> a.kind().compareTo(b.kind()));
         return new Alerts(list.stream().mapToLong(Alert::count).sum(), list);

@@ -37,4 +37,9 @@ public class BillingPayment extends BaseEntity {
     private Status status = Status.PENDING;
     private String failureReason;
     private Instant completedAt;
+    /** A bank transfer (FR-10.14): the bank, and the Owner's screenshot (a private file). */
+    private String bank;
+    private String proofPath;
+    /** The super admin who approved or rejected a bank transfer. */
+    private Long reviewedBy;
 }

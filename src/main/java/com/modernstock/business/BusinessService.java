@@ -3,11 +3,14 @@ package com.modernstock.business;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.admin.PlatformSettings;
 import com.modernstock.billing.Plan;
 import com.modernstock.billing.PlanRepository;
@@ -15,11 +18,12 @@ import com.modernstock.billing.Subscription;
 import com.modernstock.billing.SubscriptionRepository;
 import com.modernstock.catalog.Category;
 import com.modernstock.catalog.CategoryRepository;
+import com.modernstock.catalog.ProductService;
 import com.modernstock.catalog.Unit;
 import com.modernstock.catalog.UnitRepository;
 import com.modernstock.common.ApiException;
-import com.modernstock.common.FileStorage;
 import com.modernstock.common.Dates;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.Phones;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.member.Role;
@@ -73,7 +77,10 @@ public class BusinessService {
             @Valid @NotNull BranchService.BranchRequest mainBranch,
             @Schema(example = "4100") @NotNull @DecimalMin("1000") @DecimalMax("10000") BigDecimal usdToKhr,
             boolean vatEnabled,
-            @Schema(allowableValues = {"100", "500", "1000"}, example = "100") Integer rielRounding) {
+            @Schema(allowableValues = {"100", "500", "1000"}, example = "100") Integer rielRounding,
+            @Schema(description = "Starter units and categories for this kind of shop (FR-6.23); empty = the business's type",
+                    example = "MINI_MART") String starterType,
+            @Schema(description = "Also add the starter set's sample products, to try the POS with") boolean sampleProducts) {
     }
 
     public record BusinessResponse(Long id, String nameEn, String nameKm, String businessType, String phone,
@@ -88,6 +95,8 @@ public class BusinessService {
     }
 
     private final BusinessRepository businesses;
+    private final ProductService products;
+    private final ActivityService activity;
     private final FileStorage files;
     private final BusinessMemberRepository members;
     private final RoleRepository roles;
@@ -162,6 +171,7 @@ public class BusinessService {
     @Transactional
     public BusinessResponse update(UpdateBusinessRequest req) {
         Business b = open();
+        Map<String, Object> before = facts(b);
         b.setNameEn(req.nameEn());
         b.setNameKm(req.nameKm());
         b.setBusinessType(req.businessType());
@@ -174,7 +184,14 @@ public class BusinessService {
         if (req.language() != null) {
             b.setLanguage(req.language());
         }
+        activity.changed("PROFILE_CHANGED", "BUSINESS", b.getId(), b.getNameEn(), null, before, facts(b));
         return BusinessResponse.from(b);
+    }
+
+    private static Map<String, Object> facts(Business b) {
+        return ActivityService.values("nameEn", b.getNameEn(), "nameKm", b.getNameKm(), "businessType", java.util.Objects.toString(b.getBusinessType(), null),
+                "phone", b.getPhone(), "email", b.getEmail(), "address", b.getAddress(), "province", b.getProvince(),
+                "vatTin", b.getVatTin(), "themeColor", b.getThemeColor(), "language", java.util.Objects.toString(b.getLanguage(), null));
     }
 
     /** Main branch, settings, today's rate, starter units and categories, and the "Market" supplier. */
@@ -193,18 +210,23 @@ public class BusinessService {
                 defaults.receiptPaper(), defaults.receiptShowVatTin(), defaults.khqrEnabled(), defaults.bankEnabled(), null));
         currency.set(Dates.today(), req.usdToKhr());
 
-        unit("Piece", "ដុំ", "pcs");
-        unit("Box", "ប្រអប់", "box");
-        unit("Pack", "កញ្ចប់", "pack");
-        unit("Bottle", "ដប", "btl");
-        unit("Can", "កំប៉ុង", "can");
-        unit("Kilogram", "គីឡូក្រាម", "kg");
-        unit("Litre", "លីត្រ", "L");
-
-        Category general = new Category();
-        general.setNameEn("General");
-        general.setNameKm("ទូទៅ");
-        categories.save(general);
+        StarterSets.StarterSet set = StarterSets.forType(req.starterType() != null ? req.starterType() : b.getBusinessType());
+        Map<String, Long> unitIds = new java.util.HashMap<>();
+        set.units().forEach(u -> unitIds.put(u.symbol(), unit(u.nameEn(), u.nameKm(), u.symbol())));
+        List<Long> categoryIds = set.categories().stream().map(c -> {
+            Category category = new Category();
+            category.setNameEn(c.nameEn());
+            category.setNameKm(c.nameKm());
+            return categories.save(category).getId();
+        }).toList();
+        if (req.sampleProducts()) {
+            for (StarterSets.ProductSeed seed : set.products()) {
+                List<ProductService.ProductUnitRequest> packs = seed.packUnit() == null ? List.of()
+                        : List.of(new ProductService.ProductUnitRequest(unitIds.get(seed.packUnit()), seed.packFactor(), null, seed.packPrice()));
+                products.create(new ProductService.ProductRequest(null, null, seed.nameEn(), seed.nameKm(), categoryIds.get(seed.category()),
+                        unitIds.get(seed.unit()), seed.price(), seed.reorderLevel(), 3, seed.trackExpiry(), false, packs));
+            }
+        }
 
         Supplier market = new Supplier();
         market.setName("Market");
@@ -215,12 +237,12 @@ public class BusinessService {
         return BusinessResponse.from(b);
     }
 
-    private void unit(String nameEn, String nameKm, String symbol) {
+    private Long unit(String nameEn, String nameKm, String symbol) {
         Unit u = new Unit();
         u.setNameEn(nameEn);
         u.setNameKm(nameKm);
         u.setSymbol(symbol);
-        units.save(u);
+        return units.save(u).getId();
     }
 
     private Business open() {

@@ -30,7 +30,8 @@ public class AdminController {
     public record BusinessRow(Long id, String nameEn, String nameKm, String status, Instant createdAt, String ownerEmail,
                               long members, long branches, String planCode, String subscriptionStatus, Instant trialEndsAt,
                               Instant currentPeriodEnd, Instant pastDueSince, boolean cancelAtPeriodEnd,
-                              BigDecimal openInvoiceAmount) {
+                              BigDecimal openInvoiceAmount, String billingCycle,
+                              @io.swagger.v3.oas.annotations.media.Schema(description = "Active add-ons, e.g. \"Extra branch ×2\"") String addons) {
     }
 
     private final JdbcTemplate jdbc;
@@ -48,7 +49,11 @@ public class AdminController {
                        (select count(*) from branches br where br.business_id = b.id and br.is_active) as branches,
                        p.code as plan_code, s.status as sub_status, s.trial_ends_at, s.current_period_end, s.past_due_since,
                        s.cancel_at_period_end,
-                       (select sum(i.amount) from billing_invoices i where i.business_id = b.id and i.status = 'OPEN') as open_amount
+                       (select sum(i.amount) from billing_invoices i where i.business_id = b.id and i.status = 'OPEN') as open_amount,
+                       s.billing_cycle,
+                       (select string_agg(a.name || case when sa.quantity > 1 then ' ×' || sa.quantity else '' end, ', ' order by a.sort_order)
+                          from subscription_addons sa join addons a on a.id = sa.addon_id
+                         where sa.business_id = b.id and sa.status = 'ACTIVE') as addons
                   from businesses b left join subscriptions s on s.business_id = b.id left join plans p on p.id = s.plan_id
                  order by b.created_at desc
                 """, (rs, n) -> new BusinessRow(rs.getLong("id"), rs.getString("name_en"), rs.getString("name_km"),
@@ -56,7 +61,25 @@ public class AdminController {
                 rs.getLong("members"), rs.getLong("branches"), rs.getString("plan_code"), rs.getString("sub_status"),
                 instant(rs.getTimestamp("trial_ends_at")), instant(rs.getTimestamp("current_period_end")),
                 instant(rs.getTimestamp("past_due_since")), rs.getBoolean("cancel_at_period_end"),
-                rs.getBigDecimal("open_amount")));
+                rs.getBigDecimal("open_amount"), rs.getString("billing_cycle"), rs.getString("addons")));
+    }
+
+    @Operation(summary = "Suspend a business", description = "FR-8.2: its members can't open it until it is reactivated; nothing is deleted.")
+    @PostMapping("/businesses/{id}/suspend")
+    @Transactional
+    public void suspendBusiness(@PathVariable Long id) {
+        if (jdbc.update("update businesses set status = 'SUSPENDED', updated_at = now() where id = ? and status = 'ACTIVE'", id) == 0) {
+            throw com.modernstock.common.ApiException.conflict("ADMIN_BUSINESS_STATUS");
+        }
+    }
+
+    @Operation(summary = "Reactivate a suspended business")
+    @PostMapping("/businesses/{id}/reactivate")
+    @Transactional
+    public void reactivateBusiness(@PathVariable Long id) {
+        if (jdbc.update("update businesses set status = 'ACTIVE', updated_at = now() where id = ? and status = 'SUSPENDED'", id) == 0) {
+            throw com.modernstock.common.ApiException.conflict("ADMIN_BUSINESS_STATUS");
+        }
     }
 
     @Operation(summary = "Demo control: End trial now",

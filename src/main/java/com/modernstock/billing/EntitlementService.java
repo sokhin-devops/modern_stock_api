@@ -44,10 +44,29 @@ public class EntitlementService {
         };
     }
 
+    /** A limit with the business's active add-ons (FR-10.2): null = unlimited; a feature is on above 0. */
+    @Transactional(readOnly = true)
+    public Integer limit(Long businessId, String key) {
+        return limit(businessId, effectivePlan(businessId), key);
+    }
+
+    /** The same for a given plan, e.g. the one a downgrade moves to. */
+    public Integer limit(Long businessId, Plan plan, String key) {
+        Integer base = plan.limit(key);
+        if (base == null) {
+            return null;
+        }
+        Long extra = jdbc.queryForObject("""
+                SELECT coalesce(sum(sa.quantity * a.quantity), 0) FROM subscription_addons sa JOIN addons a ON a.id = sa.addon_id
+                 WHERE sa.business_id = ? AND sa.status = 'ACTIVE' AND a.limit_key = ?
+                """, Long.class, businessId, key);
+        return base + (extra == null ? 0 : extra.intValue());
+    }
+
     /** Throws 422 PLAN_LIMIT_REACHED before adding one more branch, member or product. */
     public void checkCanAdd(String key) {
         Long businessId = BusinessContext.require().businessId();
-        Integer limit = effectivePlan(businessId).limit(key);
+        Integer limit = limit(businessId, key);
         if (limit != null && usage(businessId, key) >= limit) {
             throw ApiException.rule("PLAN_LIMIT_REACHED", key, limit);
         }
@@ -59,7 +78,7 @@ public class EntitlementService {
 
     /** For jobs that run outside a request (the daily Telegram summary). */
     public boolean hasFeature(Long businessId, String key) {
-        Integer value = effectivePlan(businessId).limit(key);
+        Integer value = limit(businessId, key);
         return value == null || value > 0;
     }
 

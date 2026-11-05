@@ -39,7 +39,8 @@ public class DashboardService {
                         BigDecimal weOwe, BigDecimal billsDueSoon, long overdueBills) {
     }
 
-    public record Waiting(Long approvals, Long transfersToReceive, Long countsInProgress, Long countsToApprove) {
+    public record Waiting(Long approvals, Long transfersToReceive, Long countsInProgress, Long countsToApprove,
+                          Long returnsToApprove, Long purchaseReturnsToApprove) {
     }
 
     public record DashboardResponse(boolean ownSalesOnly, TodaySales today, BigDecimal profitToday, BigDecimal profitMonth,
@@ -125,7 +126,10 @@ public class DashboardService {
         return new DashboardResponse(sales && !money, todaySales, profitToday, profitMonth, days, top, debts, waiting());
     }
 
-    /** What waits for this member: adjustments and counts to approve, transfers to receive, counts still being counted. */
+    /**
+     * What waits for this member: adjustments, counts and returns to approve, transfers to receive, counts still being
+     * counted.
+     */
     Waiting waiting() {
         MapSqlParameterSource p = new MapSqlParameterSource()
                 .addValue("business", BusinessContext.businessId())
@@ -145,7 +149,16 @@ public class DashboardService {
         Long toApprove = BusinessContext.has("adjustment:approve") ? jdbc.queryForObject("""
                 select count(*) from stock_counts where business_id = :business and status = 'SUBMITTED' and branch_id in (:branches)
                 """, p, Long.class) : null;
-        return approvals == null && receive == null && counts == null && toApprove == null ? null
-                : new Waiting(approvals, receive, counts, toApprove);
+        Long returns = BusinessContext.has("sale:void") ? jdbc.queryForObject("""
+                select count(*) from sales_returns
+                 where business_id = :business and status = 'WAITING_APPROVAL' and branch_id in (:branches)
+                """, p, Long.class) : null;
+        Long purchaseReturns = BusinessContext.has("bill:manage") ? jdbc.queryForObject("""
+                select count(*) from purchase_returns
+                 where business_id = :business and status = 'WAITING_APPROVAL' and branch_id in (:branches)
+                """, p, Long.class) : null;
+        return approvals == null && receive == null && counts == null && toApprove == null && returns == null
+                && purchaseReturns == null ? null
+                : new Waiting(approvals, receive, counts, toApprove, returns, purchaseReturns);
     }
 }

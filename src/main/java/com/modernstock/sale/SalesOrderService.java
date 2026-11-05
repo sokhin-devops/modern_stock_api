@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
@@ -26,21 +27,21 @@ import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
 import com.modernstock.common.Dates;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.inventory.StockMovement;
 import com.modernstock.inventory.StockService;
 import com.modernstock.money.Allocation;
 import com.modernstock.money.Payment;
-import com.modernstock.money.PaymentService;
 import com.modernstock.money.PaymentService.PaymentLine;
+import com.modernstock.money.PaymentService;
 import com.modernstock.partner.Customer;
 import com.modernstock.partner.CustomerRepository;
 import com.modernstock.sale.SaleLines.LineRequest;
-import com.modernstock.sale.SalePricing.PricedLine;
 import com.modernstock.sale.SalePricing.Priced;
+import com.modernstock.sale.SalePricing.PricedLine;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -103,6 +104,7 @@ public class SalesOrderService {
     }
 
     private final SalesOrderRepository orders;
+    private final ActivityService activity;
     private final QuotationRepository quotations;
     private final DeliveryRepository deliveries;
     private final InvoiceRepository invoices;
@@ -143,6 +145,8 @@ public class SalesOrderService {
             throw ApiException.rule("WRONG_STATUS", o.getStatus());
         }
         o.setStatus(SalesOrder.Status.CANCELLED);
+        activity.record("SALES_ORDER_CANCELLED", "SALES_ORDER", o.getId(), o.getNumber(), o.getBranchId(), null,
+                ActivityService.values("total", o.getTotal()));
         return toResponse(o);
     }
 

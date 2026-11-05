@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.common.Dates;
 import com.modernstock.common.PageResponse;
 
@@ -42,6 +43,7 @@ public class ExchangeRateController {
     }
 
     private final CurrencyService currency;
+    private final ActivityService activity;
     private final ExchangeRateRepository repository;
 
     @Operation(summary = "Rate used today", description = "If today's rate is missing, the last one is returned with stale = true.")
@@ -62,6 +64,10 @@ public class ExchangeRateController {
     @PreAuthorize("hasAuthority('exchange_rate:manage')")
     public RateResponse setRate(@Valid @RequestBody RateRequest req) {
         LocalDate date = req.rateDate() != null ? req.rateDate() : Dates.today();
-        return RateResponse.from(currency.set(date, req.usdToKhr()));
+        BigDecimal before = repository.findByRateDate(date).map(ExchangeRate::getUsdToKhr).orElse(null);
+        RateResponse saved = RateResponse.from(currency.set(date, req.usdToKhr()));
+        activity.changed("RATE_SET", "EXCHANGE_RATE", null, date.toString(), null, ActivityService.values("usdToKhr", before),
+                ActivityService.values("usdToKhr", req.usdToKhr()));
+        return saved;
     }
 }

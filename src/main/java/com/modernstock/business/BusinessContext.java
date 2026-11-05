@@ -1,6 +1,5 @@
 package com.modernstock.business;
 
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -15,11 +14,11 @@ import com.modernstock.common.ApiException;
 public final class BusinessContext {
 
     /**
-     * @param memberBranchId   the member's fixed branch, or null when the member may use all branches
-     * @param selectedBranchId the branch chosen in the top bar, or null for "All branches"
+     * @param memberBranchIds  the branches the member works in, or null when the member may use all branches
+     * @param selectedBranchId the branch chosen in the top bar, or null for "All branches" (all of the member's)
      */
     public record Context(Long businessId, Long userId, Long memberId, String roleCode,
-                          Long memberBranchId, Long selectedBranchId, Set<String> permissions) {
+                          Set<Long> memberBranchIds, Long selectedBranchId, Set<String> permissions) {
     }
 
     private static final ThreadLocal<Context> CURRENT = new ThreadLocal<>();
@@ -56,7 +55,7 @@ public final class BusinessContext {
 
     public static boolean canAccessBranch(Long branchId) {
         Context c = require();
-        return c.memberBranchId() == null || Objects.equals(c.memberBranchId(), branchId);
+        return c.memberBranchIds() == null || c.memberBranchIds().contains(branchId);
     }
 
     public static void requireBranch(Long branchId) {
@@ -65,10 +64,10 @@ public final class BusinessContext {
         }
     }
 
-    /** The branch a member can only see, or null when they see all branches. Used to filter lists. */
-    public static Long branchFilter() {
+    /** The branches a request reads: the one picked in the top bar, else the member's own, else null (all). Filters lists. */
+    public static Set<Long> branchFilter() {
         Context c = require();
-        return c.selectedBranchId() != null ? c.selectedBranchId() : c.memberBranchId();
+        return c.selectedBranchId() != null ? Set.of(c.selectedBranchId()) : c.memberBranchIds();
     }
 
     /**

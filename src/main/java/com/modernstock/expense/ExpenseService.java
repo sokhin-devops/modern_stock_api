@@ -9,11 +9,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.common.ApiException;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.money.Payment;
@@ -62,6 +63,7 @@ public class ExpenseService {
             new String[] {"Salaries", "ប្រាក់ខែ"}, new String[] {"Transport", "ការដឹកជញ្ជូន"}, new String[] {"Other", "ផ្សេងៗ"});
 
     private final ExpenseCategoryRepository categories;
+    private final ActivityService activity;
     private final ExpenseRepository expenses;
     private final DocumentNumberService numbers;
     private final CurrencyService currency;
@@ -142,6 +144,8 @@ public class ExpenseService {
         }
         e.setStatus(Expense.Status.VOID);
         e.setVoidedAt(Instant.now());
+        activity.record("EXPENSE_VOIDED", "EXPENSE", e.getId(), e.getNumber(), e.getBranchId(), null,
+                ActivityService.values("amountUsd", e.getAmountUsd()));
         return toResponse(e, categories.findAll());
     }
 

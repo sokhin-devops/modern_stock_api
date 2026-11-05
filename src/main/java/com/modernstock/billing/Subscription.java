@@ -39,6 +39,9 @@ public class Subscription extends BaseEntity {
     @Column(nullable = false)
     private boolean cancelAtPeriodEnd;
     private Long pendingPlanId;
+    /** Switches at the end of the period (FR-10.13). */
+    @Enumerated(EnumType.STRING)
+    private Cycle pendingBillingCycle;
     /** The Owner chose a paid plan; during the trial it is billed when the trial ends. */
     @Column(nullable = false)
     private boolean subscribed;

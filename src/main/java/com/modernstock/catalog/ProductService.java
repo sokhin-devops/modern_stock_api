@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.billing.EntitlementService;
 import com.modernstock.business.BranchRepository;
 import com.modernstock.business.BranchScope;
@@ -110,6 +111,7 @@ public class ProductService {
     private final BranchService branchService;
     private final EntitlementService entitlements;
     private final FileStorage files;
+    private final ActivityService activity;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String q, Long categoryId, Boolean active, Pageable pageable) {
@@ -154,6 +156,7 @@ public class ProductService {
         }
         apply(p, req);
         products.save(p);
+        activity.record("PRODUCT_CREATED", "PRODUCT", p.getId(), p.getNameEn(), null, null, facts(p));
         return toResponse(p, unitSymbols(), BigDecimal.ZERO);
     }
 
@@ -166,14 +169,20 @@ public class ProductService {
             }
             p.setSku(req.sku().trim());
         }
+        Map<String, Object> before = facts(p);
         apply(p, req);
+        activity.changed("PRODUCT_CHANGED", "PRODUCT", p.getId(), p.getNameEn(), null, before, facts(p));
         return get(id);
     }
 
     /** Products are never deleted: old documents point to them. */
     @Transactional
     public void deactivate(Long id) {
-        products.get(id).setActive(false);
+        Product p = products.get(id);
+        if (p.isActive()) {
+            activity.record("PRODUCT_DEACTIVATED", "PRODUCT", p.getId(), p.getNameEn(), null, null, null);
+        }
+        p.setActive(false);
     }
 
     /** Scanner lookup for the POS: matches the product barcode or a packaging unit's barcode. */
@@ -203,6 +212,7 @@ public class ProductService {
     @Transactional
     public List<BranchPriceResponse> setBranchPrices(Long productId, List<BranchPriceRequest> req) {
         Product p = products.get(productId);
+        Map<String, Object> before = branchPriceFacts(p);
         for (BranchPriceRequest r : req) {
             branches.get(r.branchId());
             BusinessContext.requireBranch(r.branchId());
@@ -225,6 +235,7 @@ public class ProductService {
             branchPrices.save(bp);
         }
         branchPrices.flush();
+        activity.changed("BRANCH_PRICES_CHANGED", "PRODUCT", p.getId(), p.getNameEn(), null, before, branchPriceFacts(p));
         return branchPrices(productId);
     }
 
@@ -238,7 +249,8 @@ public class ProductService {
 
     @Transactional
     public List<BranchReorderResponse> setBranchReorderLevels(Long productId, List<BranchReorderRequest> req) {
-        products.get(productId);
+        Product p = products.get(productId);
+        Map<String, Object> before = reorderFacts(p);
         for (BranchReorderRequest r : req) {
             branches.get(r.branchId());
             BusinessContext.requireBranch(r.branchId());
@@ -258,6 +270,7 @@ public class ProductService {
             reorderOverrides.save(own);
         }
         reorderOverrides.flush();
+        activity.changed("REORDER_LEVELS_CHANGED", "PRODUCT", p.getId(), p.getNameEn(), null, before, reorderFacts(p));
         return branchReorderLevels(productId);
     }
 
@@ -380,6 +393,34 @@ public class ProductService {
                 BusinessContext.has("product:manage") ? p.getAvgCost() : null, p.getReorderLevel(),
                 p.getLeadTimeDays(), p.isTrackExpiry(), p.isVatExempt(), p.isActive(), unitList, qtyOnHand,
                 FileStorage.url(p.getImagePath()), reorderAt);
+    }
+
+    /** What the activity log compares when a product changes: names, codes and prices (FR-6.22). */
+    private Map<String, Object> facts(Product p) {
+        Map<Long, String> symbols = unitSymbols();
+        Map<String, Object> facts = ActivityService.values("nameEn", p.getNameEn(), "nameKm", p.getNameKm(), "sku", p.getSku(),
+                "barcode", p.getBarcode(), "sellPrice", p.getSellPrice(), "reorderLevel", p.getReorderLevel(),
+                "vatExempt", p.isVatExempt());
+        p.getUnits().forEach(u -> facts.put("sellPrice." + symbols.get(u.getUnitId()), u.getSellPrice()));
+        return facts;
+    }
+
+    /** "Toul Kork · pcs" → price, for the branches with their own price. */
+    private Map<String, Object> branchPriceFacts(Product p) {
+        Map<Long, String> symbols = unitSymbols();
+        Map<Long, String> names = branches.findAll().stream().collect(Collectors.toMap(b -> b.getId(), b -> b.getNameEn()));
+        Map<String, Object> facts = new java.util.TreeMap<>();
+        branchPrices.findByProductId(p.getId())
+                .forEach(bp -> facts.put(names.get(bp.getBranchId()) + " · " + symbols.get(bp.getUnitId()), bp.getSellPrice()));
+        return facts;
+    }
+
+    /** Branch name → its own reorder level. */
+    private Map<String, Object> reorderFacts(Product p) {
+        Map<Long, String> names = branches.findAll().stream().collect(Collectors.toMap(b -> b.getId(), b -> b.getNameEn()));
+        Map<String, Object> facts = new java.util.TreeMap<>();
+        reorderOverrides.findByProductId(p.getId()).forEach(o -> facts.put(names.get(o.getBranchId()), o.getReorderLevel()));
+        return facts;
     }
 
     static String like(String q) {

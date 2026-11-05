@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
@@ -147,6 +148,7 @@ public class PosService {
     private final SalePricing pricing;
     private final SaleDocuments documents;
     private final ApplicationEventPublisher events;
+    private final ActivityService activity;
 
     @Transactional
     public CheckoutResponse checkout(CheckoutRequest req) {
@@ -268,6 +270,8 @@ public class PosService {
         r.setVoidedBy(CurrentUser.id());
         r.setNote(r.getNote() == null ? "Void: " + req.reason() : r.getNote() + " | Void: " + req.reason());
         events.publishEvent(new TelegramAlerts.SaleVoided(BusinessContext.businessId(), r.getId(), CurrentUser.id(), req.reason()));
+        activity.record("RECEIPT_VOIDED", "SALES_RECEIPT", r.getId(), r.getNumber(), r.getBranchId(), null,
+                ActivityService.values("total", r.getTotal(), "reason", req.reason()));
         return toResponse(r);
     }
 

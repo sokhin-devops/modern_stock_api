@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
@@ -22,8 +23,8 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -91,6 +92,7 @@ public class TransferService {
     }
 
     private final StockTransferRepository transfers;
+    private final ActivityService activity;
     private final WarehouseRepository warehouses;
     private final StockBatchRepository batches;
     private final ProductService products;
@@ -227,6 +229,8 @@ public class TransferService {
         t.setReturnedAt(Instant.now());
         t.setReturnedBy(CurrentUser.id());
         t.setReturnReason(req.reason());
+        activity.record("TRANSFER_RETURNED", "TRANSFER", t.getId(), t.getNumber(), branchOf(t.getFromWarehouseId()), null,
+                ActivityService.values("reason", req.reason()));
         return toResponse(t);
     }
 

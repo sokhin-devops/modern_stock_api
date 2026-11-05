@@ -38,14 +38,14 @@ public class ReturnController {
 
     @Operation(summary = "What can still be returned from a sales receipt")
     @GetMapping("/sales-receipts/{id}/returnable")
-    @PreAuthorize("hasAuthority('sale:void')")
+    @PreAuthorize("hasAnyAuthority('sale:void', 'sales_return:request')")
     public Returnable returnableFromReceipt(@PathVariable Long id) {
         return returns.returnable(id, null);
     }
 
     @Operation(summary = "What can still be returned from an invoice")
     @GetMapping("/invoices/{id}/returnable")
-    @PreAuthorize("hasAuthority('sale:void')")
+    @PreAuthorize("hasAnyAuthority('sale:void', 'sales_return:request')")
     public Returnable returnableFromInvoice(@PathVariable Long id) {
         return returns.returnable(null, id);
     }
@@ -53,24 +53,41 @@ public class ReturnController {
     @Operation(summary = "Take goods back",
             description = "From salesReceiptId or invoiceId. Good items go back to stock; damaged ones are a loss. A credit note "
                     + "is made for the value: used on the invoice first, then refunded (refund) or kept as credit. A walk-in "
-                    + "customer must be refunded. 422 RETURN_TOO_MANY when more than was sold and not yet returned.")
+                    + "customer must be refunded. 422 RETURN_TOO_MANY when more than was sold and not yet returned (or waiting). "
+                    + "Without sale:void (a Cashier with sales_return:request) it waits for approval and moves nothing.")
     @PostMapping("/sales-returns")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAuthority('sale:void')")
+    @PreAuthorize("hasAnyAuthority('sale:void', 'sales_return:request')")
     public ReturnResponse createSalesReturn(@Valid @RequestBody ReturnRequest req) {
         return returns.create(req);
     }
 
     @GetMapping("/sales-returns")
-    @PreAuthorize("hasAnyAuthority('sale:void', 'customer:view')")
-    public PageResponse<ReturnResponse> salesReturns(@ParameterObject Pageable pageable) {
-        return returns.list(pageable);
+    @PreAuthorize("hasAnyAuthority('sale:void', 'customer:view', 'sales_return:request')")
+    public PageResponse<ReturnResponse> salesReturns(@RequestParam(required = false) SalesReturn.Status status,
+                                                     @ParameterObject Pageable pageable) {
+        return returns.list(status, pageable);
     }
 
     @GetMapping("/sales-returns/{id}")
-    @PreAuthorize("hasAnyAuthority('sale:void', 'customer:view')")
+    @PreAuthorize("hasAnyAuthority('sale:void', 'customer:view', 'sales_return:request')")
     public ReturnResponse salesReturn(@PathVariable Long id) {
         return returns.get(id);
+    }
+
+    @Operation(summary = "Approve a requested return", description = "Posted now: goods back, credit note, and the refund the "
+            + "Cashier asked for (cash from their open shift). 422 RETURN_SALE_VOID when the sale was voided meanwhile.")
+    @PostMapping("/sales-returns/{id}/approve")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public ReturnResponse approveSalesReturn(@PathVariable Long id) {
+        return returns.approve(id);
+    }
+
+    @Operation(summary = "Reject a requested return", description = "Nothing moves; the goods can be asked for again.")
+    @PostMapping("/sales-returns/{id}/reject")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public ReturnResponse rejectSalesReturn(@PathVariable Long id) {
+        return returns.reject(id);
     }
 
     @Operation(summary = "A credit note by hand", description = "For a price correction; used on invoices or refunded later.")

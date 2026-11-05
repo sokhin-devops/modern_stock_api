@@ -78,7 +78,9 @@ public class AccountController {
 
     public record MyBusinessResponse(Long id, String nameEn, String nameKm, String businessType,
                                      Business.Status status, boolean onboardingCompleted, String roleCode,
-                                     String roleNameEn, String roleNameKm, Long branchId,
+                                     String roleNameEn, String roleNameKm,
+                                     @Schema(description = "The member's first branch; null = all branches") Long branchId,
+                                     @Schema(description = "Every branch the member works in; null = all branches") List<Long> branchIds,
                                      Subscription.Status subscriptionStatus, Instant trialEndsAt,
                                      @Schema(description = "What this member may do; the web app shows only these menus")
                                      List<String> permissions) {
@@ -217,7 +219,7 @@ public class AccountController {
     private MyBusinessResponse toResponse(Business b, BusinessMember m, Subscription s) {
         Role r = roles.findById(m.getRoleId()).orElseThrow();
         return new MyBusinessResponse(b.getId(), b.getNameEn(), b.getNameKm(), b.getBusinessType(), b.getStatus(),
-                b.isOnboardingCompleted(), r.getCode(), r.getNameEn(), r.getNameKm(), m.getBranchId(),
+                b.isOnboardingCompleted(), r.getCode(), r.getNameEn(), r.getNameKm(), m.getBranchId(), m.workBranchIds(),
                 s == null ? null : s.getStatus(), s == null ? null : s.getTrialEndsAt(),
                 r.getPermissions().stream().map(Permission::getCode).sorted().toList());
     }

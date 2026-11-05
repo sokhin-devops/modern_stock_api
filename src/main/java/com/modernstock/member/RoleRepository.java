@@ -13,4 +13,7 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
 
     @Query("select r from Role r where r.businessId is null and r.code = :code")
     Optional<Role> findBuiltIn(String code);
+
+    /** Custom roles of a business. */
+    long countByBusinessId(Long businessId);
 }

@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.common.PageResponse;
 import com.modernstock.common.Phones;
@@ -77,6 +78,7 @@ public class PartnerController {
     }
 
     private final SupplierRepository suppliers;
+    private final ActivityService activity;
     private final CustomerRepository customers;
     private final BalanceService balances;
 
@@ -178,8 +180,13 @@ public class PartnerController {
     @PreAuthorize("hasAuthority('customer:manage')")
     @Transactional
     public CustomerResponse updateCustomer(@PathVariable Long id, @Valid @RequestBody CustomerRequest req) {
-        apply(customers.get(id), req);
+        Customer c = customers.get(id);
+        Map<String, Object> before = ActivityService.values("name", c.getName(), "creditLimit", c.getCreditLimit(),
+                "paymentTermsDays", c.getPaymentTermsDays(), "vatTin", c.getVatTin());
+        apply(c, req);
         customers.flush();
+        activity.changed("CUSTOMER_CHANGED", "CUSTOMER", c.getId(), c.getName(), null, before, ActivityService.values("name", c.getName(),
+                "creditLimit", c.getCreditLimit(), "paymentTermsDays", c.getPaymentTermsDays(), "vatTin", c.getVatTin()));
         return getCustomer(id);
     }
 
