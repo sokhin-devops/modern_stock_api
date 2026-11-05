@@ -45,6 +45,22 @@ public class StockReportService {
                                List<OnHandRow> rows) {
     }
 
+    public record EoqRow(Long productId, String sku, String name, String nameKm, String unitSymbol, Pack pack,
+                         @Schema(description = "Base units a year (D): sold in the last year, or the time since the first sale scaled to a year")
+                         BigDecimal annualDemand,
+                         @Schema(description = "Average cost of one base unit") BigDecimal unitCost,
+                         @Schema(description = "√(2 × D × S / H), base units, rounded up") BigDecimal eoq,
+                         BigDecimal ordersPerYear,
+                         @Schema(description = "Days between two orders of this size") int daysBetweenOrders,
+                         BigDecimal onHand) {
+    }
+
+    public record EoqReport(@Schema(description = "Days of sales the demand is taken from (30 to 365)") int salesDays,
+                            @Schema(description = "S: what one order costs (transport, time), USD") BigDecimal orderCost,
+                            @Schema(description = "H as a share of the unit cost per year, %") BigDecimal holdingPercent,
+                            List<EoqRow> rows) {
+    }
+
     public record ReorderRow(Long productId, String sku, String name, String nameKm, String unitSymbol, Pack pack,
                              BigDecimal onHand, BigDecimal reorderLevel, BigDecimal soldPerDay, int leadTimeDays,
                              BigDecimal suggestedQty, BigDecimal lastCost, BigDecimal suggestedValue) {
@@ -167,6 +183,45 @@ public class StockReportService {
         });
         BigDecimal total = cost ? rows.stream().map(ReorderRow::suggestedValue).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
         return new ReorderReport(COVER_DAYS, SALES_DAYS, total, rows);
+    }
+
+    /**
+     * Economic order quantity (FR-5.9, PLAIN.md 11.9): the order size that keeps ordering plus holding costs lowest,
+     * √(2 × D × S / H) with D the yearly demand, S what one order costs and H what holding one unit costs a year (a
+     * share of its average cost). Products sold in the last year with a cost, the biggest yearly value first.
+     */
+    @Transactional(readOnly = true)
+    public EoqReport eoq(BigDecimal orderCost, BigDecimal holdingPercent) {
+        ReportScope.requireMoney();
+        LocalDate today = Dates.today();
+        MapSqlParameterSource p = params()
+                .addValue("from", today.minusDays(364))
+                .addValue("to", today)
+                .addValue("cashier", null, java.sql.Types.BIGINT);
+        java.sql.Date first = jdbc.queryForObject("select min(day) from (%s) l".formatted(ReportService.LINES), p, java.sql.Date.class);
+        int days = first == null ? 365
+                : (int) Math.max(30, Math.min(365, java.time.temporal.ChronoUnit.DAYS.between(first.toLocalDate(), today) + 1));
+        double s = orderCost.doubleValue();
+        double share = holdingPercent.doubleValue() / 100;
+        List<EoqRow> rows = jdbc.query("""
+                select s.*, sold.qty as sold from (%s) s
+                  join (select product_id, sum(base_qty) as qty from (%s) l group by product_id having sum(base_qty) > 0) sold
+                    on sold.product_id = s.id
+                 where s.avg_cost > 0
+                 order by sold.qty * s.avg_cost desc, s.name_en
+                """.formatted(ON_HAND, ReportService.LINES), p, (rs, n) -> {
+            BigDecimal cost = rs.getBigDecimal("avg_cost");
+            double d = rs.getBigDecimal("sold").doubleValue() * 365 / days;
+            double h = cost.doubleValue() * share;
+            double q = Math.max(1, Math.ceil(Math.sqrt(2 * d * s / h)));
+            double perYear = d / q;
+            return new EoqRow(rs.getLong("id"), rs.getString("sku"), rs.getString("name_en"), rs.getString("name_km"),
+                    rs.getString("symbol"), pack(rs.getString("pack_symbol"), rs.getBigDecimal("pack_factor")),
+                    BigDecimal.valueOf(d).setScale(1, RoundingMode.HALF_UP), cost.setScale(4, RoundingMode.HALF_UP),
+                    BigDecimal.valueOf(q).setScale(0, RoundingMode.UNNECESSARY), BigDecimal.valueOf(perYear).setScale(1, RoundingMode.HALF_UP),
+                    (int) Math.round(365 / perYear), rs.getBigDecimal("qty"));
+        });
+        return new EoqReport(days, orderCost, holdingPercent, rows);
     }
 
     /** Batches in stock that expire within N days, and expired batches still in stock (soonest first). */

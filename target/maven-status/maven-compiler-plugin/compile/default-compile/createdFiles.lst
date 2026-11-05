@@ -99,6 +99,7 @@ com\modernstock\purchase\PurchaseService$GrnLineResponse.class
 com\modernstock\inventory\StockAdjustment$Kind.class
 com\modernstock\billing\BillingController.class
 com\modernstock\inventory\StockRequest.class
+com\modernstock\report\StockReportService$EoqRow.class
 com\modernstock\sale\SalesOrderService$OrderLineResponse.class
 com\modernstock\sale\SalesController.class
 com\modernstock\billing\BillingController$MyAddon.class
@@ -155,6 +156,7 @@ com\modernstock\business\BusinessService$BusinessResponse.class
 com\modernstock\ModernStockApplication.class
 com\modernstock\sale\DebitNoteService$DebitNoteRequest.class
 com\modernstock\report\ReportService$ExpenseRow.class
+com\modernstock\report\StockReportService$EoqReport.class
 com\modernstock\sale\PosService$SalesReceiptResponse.class
 com\modernstock\business\BusinessController.class
 com\modernstock\purchase\PurchaseOrderItem.class

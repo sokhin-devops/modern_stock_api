@@ -104,6 +104,7 @@ public class TransferService {
     private final DocumentNumberService numbers;
     private final BranchService branches;
     private final BranchScope scope;
+    private final StockRequestRepository stockRequests;
 
     @Transactional
     public TransferResponse create(TransferRequest req) {
@@ -122,10 +123,18 @@ public class TransferService {
         return toResponse(t);
     }
 
-    /** A draft is deleted, not cancelled: nothing has moved yet. */
+    /** A draft is deleted, not cancelled: nothing has moved yet. A request it was made from is open again (FR-4.11). */
     @Transactional
     public void delete(Long id) {
-        transfers.delete(draft(id));
+        StockTransfer t = draft(id);
+        stockRequests.findByTransferId(t.getId()).ifPresent(r -> {
+            r.setTransferId(null);
+            r.setStatus(StockRequest.Status.OPEN);
+            r.setDecidedBy(null);
+            r.setDecidedAt(null);
+        });
+        stockRequests.flush();
+        transfers.delete(t);
     }
 
     /** Same branch: out of one warehouse and into the other in one transaction. */

@@ -1,5 +1,6 @@
 package com.modernstock.report;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -88,6 +89,20 @@ public class ReportController {
     public AbcReport abcReport(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to) {
         LocalDate end = end(to);
         return reports.abc(from == null ? end.minusYears(1).plusDays(1) : from, end);
+    }
+
+    @Operation(summary = "Economic order quantity",
+            description = "FR-5.9: the order size per product from the last year of sales, what one order costs (orderCost, USD, "
+                    + "5 by default) and what holding stock costs a year (holdingPercent of the unit cost, 20 by default).")
+    @GetMapping("/eoq")
+    @PreAuthorize("hasAuthority('report:view')")
+    public StockReportService.EoqReport eoqReport(@RequestParam(defaultValue = "5") BigDecimal orderCost,
+                                                  @RequestParam(defaultValue = "20") BigDecimal holdingPercent) {
+        if (orderCost.signum() <= 0 || orderCost.compareTo(BigDecimal.valueOf(10_000)) > 0
+                || holdingPercent.signum() <= 0 || holdingPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw ApiException.badRequest("EOQ_INPUT_INVALID");
+        }
+        return stock.eoq(orderCost, holdingPercent);
     }
 
     @Operation(summary = "Stock on hand", description = "Quantity and value per product; stock in transit as its own line.")

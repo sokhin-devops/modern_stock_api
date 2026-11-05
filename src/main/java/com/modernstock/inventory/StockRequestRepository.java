@@ -1,6 +1,7 @@
 package com.modernstock.inventory;
 
 import java.util.Collection;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,4 +19,6 @@ public interface StockRequestRepository extends TenantRepository<StockRequest> {
             order by r.id desc
             """)
     Page<StockRequest> search(Collection<Long> branchIds, StockRequest.Status status, Pageable pageable);
+
+    Optional<StockRequest> findByTransferId(Long transferId);
 }
