@@ -85,6 +85,10 @@ public class ReportService {
      * One row per sold line in the period, in the branches the member sees (and only the cashier's own when
      * :cashier is set): paid receipts and invoices.
      */
+    /** The row of debit notes in sales by product or category (they have no goods). */
+    private static final String DEBIT_NOTES_EN = "Debit notes";
+    private static final String DEBIT_NOTES_KM = "កំណត់ត្រាឥណពន្ធ";
+
     static final String LINES = """
             select (r.sold_at at time zone 'Asia/Phnom_Penh')::date as day, r.branch_id, r.cashier_id as user_id,
                    'R' || r.id as doc, si.product_id, si.base_qty,
@@ -108,6 +112,13 @@ public class ReportService {
              where sr.business_id = :business and sr.status = 'POSTED' and sr.branch_id in (:branches)
                and (cast(:cashier as bigint) is null or sr.created_by = :cashier)
                and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date between :from and :to
+            union all
+            select i.invoice_date, i.branch_id, i.created_by, 'D' || i.id, cast(null as bigint), cast(0 as numeric),
+                   i.subtotal - i.discount, cast(0 as numeric)
+              from invoices i
+             where i.business_id = :business and i.type = 'DEBIT_NOTE' and i.status <> 'VOID' and i.branch_id in (:branches)
+               and (cast(:cashier as bigint) is null or i.created_by = :cashier)
+               and i.invoice_date between :from and :to
             """;
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
@@ -130,15 +141,17 @@ public class ReportService {
                     select to_char(l.day, 'YYYY-MM-DD') as key, to_char(l.day, 'YYYY-MM-DD') as label, null as label_km,
                            null as qty, null as unit, %s from (%s) l group by l.day order by l.day""";
             case PRODUCT -> """
-                    select l.product_id::text as key, p.name_en as label, p.name_km as label_km, sum(l.base_qty) as qty,
-                           u.symbol as unit, %s
-                      from (%s) l join products p on p.id = l.product_id join units u on u.id = p.base_unit_id
+                    select coalesce(l.product_id::text, 'DN') as key, coalesce(p.name_en, '%3$s') as label,
+                           case when l.product_id is null then '%4$s' else p.name_km end as label_km,
+                           case when l.product_id is null then null else sum(l.base_qty) end as qty, u.symbol as unit, %1$s
+                      from (%2$s) l left join products p on p.id = l.product_id left join units u on u.id = p.base_unit_id
                      group by l.product_id, p.name_en, p.name_km, u.symbol order by sales desc""";
             case CATEGORY -> """
-                    select coalesce(c.id::text, '') as key, c.name_en as label, c.name_km as label_km, null as qty,
-                           null as unit, %s
-                      from (%s) l join products p on p.id = l.product_id left join categories c on c.id = p.category_id
-                     group by c.id, c.name_en, c.name_km order by sales desc""";
+                    select case when l.product_id is null then 'DN' else coalesce(c.id::text, '') end as key,
+                           case when l.product_id is null then '%3$s' else c.name_en end as label,
+                           case when l.product_id is null then '%4$s' else c.name_km end as label_km, null as qty, null as unit, %1$s
+                      from (%2$s) l left join products p on p.id = l.product_id left join categories c on c.id = p.category_id
+                     group by (l.product_id is null), c.id, c.name_en, c.name_km order by sales desc""";
             case BRANCH -> """
                     select l.branch_id::text as key, b.name_en as label, b.name_km as label_km, null as qty, null as unit, %s
                       from (%s) l join branches b on b.id = l.branch_id
@@ -150,7 +163,7 @@ public class ReportService {
                      group by l.user_id, u.full_name order by sales desc""";
         };
         String sums = "count(distinct l.doc) filter (where l.doc not like 'S%') as documents, sum(l.revenue) as sales, sum(l.cost) as cost";
-        List<SalesRow> rows = jdbc.query(group.formatted(sums, LINES), p, (rs, n) -> salesRow(rs, money));
+        List<SalesRow> rows = jdbc.query(group.formatted(sums, LINES, DEBIT_NOTES_EN, DEBIT_NOTES_KM), p, (rs, n) -> salesRow(rs, money));
         Map<String, Object> totals = jdbc.queryForMap(
                 "select count(distinct l.doc) filter (where l.doc not like 'S%%') as documents, coalesce(sum(l.revenue), 0) as sales, coalesce(sum(l.cost), 0) as cost from (%s) l"
                         .formatted(LINES), p);

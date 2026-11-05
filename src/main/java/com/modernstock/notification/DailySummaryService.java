@@ -118,7 +118,9 @@ public class DailySummaryService {
                              where i.branch_id = br.id and i.status <> 'VOID' and i.invoice_date = :day), 0)
                   - coalesce((select sum(ri.qty * ri.unit_net - case when ri.condition = 'GOOD' then ri.base_qty * ri.cost_at_sale else 0 end)
                               from sales_return_items ri join sales_returns sr on sr.id = ri.return_id
-                             where sr.branch_id = br.id and sr.status = 'POSTED' and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date = :day), 0) as profit,
+                             where sr.branch_id = br.id and sr.status = 'POSTED' and (sr.returned_at at time zone 'Asia/Phnom_Penh')::date = :day), 0)
+                  + coalesce((select sum(i.subtotal - i.discount) from invoices i where i.branch_id = br.id and i.type = 'DEBIT_NOTE'
+                             and i.status <> 'VOID' and i.invoice_date = :day), 0) as profit,
                   coalesce((select sum(pm.amount) from payments pm where pm.branch_id = br.id and pm.direction = 'IN'
                              and pm.status = 'POSTED' and pm.method = 'CASH' and pm.currency = 'USD'
                              and (pm.paid_at at time zone 'Asia/Phnom_Penh')::date = :day), 0)
