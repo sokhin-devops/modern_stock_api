@@ -90,7 +90,7 @@ public class AuthController {
     @Operation(summary = "Switch cashier with a PIN",
             description = "FR-6.19: on a device where someone is signed in, another member of the business who sells takes over "
                     + "with their 4-6 digit PIN. This device's session ends and the new one starts (new refresh cookie). "
-                    + "400 PIN_WRONG, 422 PIN_LOCKED after 5 wrong PINs (15 minutes).")
+                    + "400 PIN_WRONG, 422 PIN_LOCKED after 5 wrong PINs (until that person signs in with the password).")
     @PostMapping("/pin-switch")
     public ResponseEntity<TokenResponse> pinSwitch(@Valid @RequestBody PinSwitchRequest req,
             @Parameter(hidden = true) @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {

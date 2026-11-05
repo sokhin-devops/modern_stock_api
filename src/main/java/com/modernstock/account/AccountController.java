@@ -304,8 +304,13 @@ public class AccountController {
         invitations.decline(key, CurrentUser.id());
     }
 
+    /** The signed-in account; a suspended or deleted one is refused even while its last access token runs. */
     private User currentUser() {
-        return users.findById(CurrentUser.id()).orElseThrow(() -> ApiException.notFound("Account"));
+        User u = users.findById(CurrentUser.id()).orElseThrow(() -> ApiException.notFound("Account"));
+        if (u.getStatus() == User.Status.DISABLED) {
+            throw ApiException.forbidden("ACCOUNT_DISABLED");
+        }
+        return u;
     }
 
     private MyBusinessResponse toResponse(Business b, BusinessMember m, Subscription s) {

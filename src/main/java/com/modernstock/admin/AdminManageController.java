@@ -135,6 +135,9 @@ public class AdminManageController {
     @Transactional
     public void reactivateAccount(@PathVariable Long id) {
         account(id);
+        if (!jdbc.queryForList("select 1 from users where id = ? and deleted_at is not null", Integer.class, id).isEmpty()) {
+            throw ApiException.rule("ADMIN_ACCOUNT_DELETED");
+        }
         jdbc.update("""
                 update users set status = case when email_verified_at is not null or email is null then 'ACTIVE' else 'UNVERIFIED' end,
                        updated_at = now() where id = ? and status = 'DISABLED'

@@ -76,9 +76,8 @@ public class AuthService {
                                    @Schema(example = "1234") @NotBlank @jakarta.validation.constraints.Pattern(regexp = "\\d{4,6}") String pin) {
     }
 
-    /** Wrong PINs in a row before the PIN locks, and for how long. */
+    /** Wrong PINs in a row before the PIN locks; it stays locked until its owner signs in with the password. */
     public static final int PIN_TRIES = 5;
-    public static final Duration PIN_LOCK = Duration.ofMinutes(15);
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record TokenResponse(String accessToken, String tokenType, long expiresIn, UserResponse user,
@@ -152,18 +151,24 @@ public class AuthService {
             throw ApiException.forbidden("ACCOUNT_DISABLED");
         }
         u.setLastLoginAt(Instant.now());
+        // Signing in with the password unlocks a PIN locked by wrong tries (FR-6.19)
+        u.setPinFailed(0);
+        u.setPinLockedUntil(null);
         return issueSession(u, null);
     }
 
     /** Rotates the refresh token: the old one stops working. */
     /**
      * Quick cashier switch on a shared POS device (FR-6.19): someone is signed in here, and another member of the same
-     * business who sells takes over with their PIN. Five wrong PINs lock that PIN for 15 minutes.
+     * business who sells takes over with their PIN. Five wrong PINs lock that PIN until its owner signs in with the
+     * password, so a PIN can't be guessed over days (a PIN session is a full session).
      */
     @Transactional(noRollbackFor = ApiException.class)
     public Session pinSwitch(Long callerId, PinSwitchRequest req) {
+        // Whoever is signed in here: still an active account (a suspended one keeps its member rows) and a member
+        boolean callerActive = users.findById(callerId).map(x -> x.getStatus() == User.Status.ACTIVE).orElse(false);
         BusinessMember caller = members.findByBusinessIdAndUserId(req.businessId(), callerId)
-                .filter(m -> m.getStatus() == BusinessMember.Status.ACTIVE)
+                .filter(m -> callerActive && m.getStatus() == BusinessMember.Status.ACTIVE)
                 .orElseThrow(() -> ApiException.forbidden("PERMISSION_DENIED"));
         BusinessMember target = members.findByBusinessIdAndUserId(req.businessId(), req.userId())
                 .filter(m -> m.getStatus() == BusinessMember.Status.ACTIVE && !m.isDisabledByPlan())
@@ -176,15 +181,15 @@ public class AuthService {
             throw ApiException.forbidden("PERMISSION_DENIED");
         }
         Instant now = Instant.now();
-        if (u.getPinLockedUntil() != null && u.getPinLockedUntil().isAfter(now)) {
-            throw ApiException.rule("PIN_LOCKED", java.time.temporal.ChronoUnit.MINUTES.between(now, u.getPinLockedUntil()) + 1);
+        if (u.getPinLockedUntil() != null) {
+            throw ApiException.rule("PIN_LOCKED", u.getFullName());
         }
         if (!passwordEncoder.matches(req.pin(), u.getPinHash())) {
             u.setPinFailed(u.getPinFailed() + 1);
             if (u.getPinFailed() >= PIN_TRIES) {
                 u.setPinFailed(0);
-                u.setPinLockedUntil(now.plus(PIN_LOCK));
-                throw ApiException.rule("PIN_LOCKED", PIN_LOCK.toMinutes());
+                u.setPinLockedUntil(now);
+                throw ApiException.rule("PIN_LOCKED", u.getFullName());
             }
             throw ApiException.badRequest("PIN_WRONG", PIN_TRIES - u.getPinFailed());
         }
