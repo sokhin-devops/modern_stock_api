@@ -2,7 +2,9 @@
 # On your PC:  ./mvnw package -DskipTests && docker build -t modern-stock-api .
 FROM eclipse-temurin:21-jre-noble
 
-RUN useradd --system --uid 10001 --no-create-home app
+# Ubuntu's security fixes published since the base image was built, then the user the API runs as
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --no-create-home app
 WORKDIR /app
 # Owned by root: the app user can read the jar but not change it, so a compromised app can't replace its own code
 COPY target/modern_stock_api.jar app.jar

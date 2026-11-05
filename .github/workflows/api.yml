@@ -66,7 +66,8 @@ jobs:
           # Scanned from a saved file: reading a JRE image through the Docker socket can pass Trivy's 5-minute limit.
           # No secret scanner here: gitleaks covers the repo, and .dockerignore lets only the jar into the image.
           docker save "$IMAGE:ci" -o image.tar
-          trivy image --input image.tar --timeout 15m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+          trivy image --input image.tar --timeout 15m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --ignorefile .trivyignore.yaml # accepted findings, each with its reason and an expiry date
           trivy image --input image.tar --timeout 15m --format cyclonedx --output sbom.cdx.json
           rm image.tar
 

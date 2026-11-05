@@ -1,0 +1,13 @@
+# Vulnerabilities Trivy reports that don't affect this API, each with the reason (doc/plain/DevSecOps.md section 7).
+# They expire, so the pipeline asks again: by then, upgrade to Spring Boot 4 or check the reason still holds.
+vulnerabilities:
+  - id: CVE-2026-47884
+    statement: >-
+      Remote code execution through Spring MVC's XsltView. Fixed only in Spring Framework 7 (Spring Boot 4).
+      The API renders no views at all, and no XSLT: every endpoint returns JSON or a file.
+    expired_at: 2027-05-05
+  - id: CVE-2026-47890
+    statement: >-
+      Stream corruption in server-sent events rendered with a view. Fixed only in Spring Framework 7 (Spring Boot 4).
+      The API has no server-sent events and no views.
+    expired_at: 2027-05-05
