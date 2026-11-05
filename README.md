@@ -163,6 +163,7 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `ConcurrentCheckoutTest` | **Two cashiers sell the last unit at the same moment: one gets 201, the other 422** |
 | `ExpensesCountsReportsTest` | Starter expense categories, an expense in riel lowers the net profit, the sales report, voiding an expense; a stock count posts only the counted differences; Telegram settings are kept and the test message needs a bot |
 | `OpenApiExportTest` | The Swagger document is complete, with unique operation IDs. It writes [docs/openapi.yaml](docs/openapi.yaml) |
+| `ClientIpFilterTest` | Behind Cloudflare the rate limits count the visitor (`CF-Connecting-IP`), not the proxy, and a faked `X-Forwarded-For` changes nothing |
 
 ## Troubleshooting
 
@@ -193,15 +194,21 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `TELEGRAM_TEAM_CHAT_ID` | empty | Your team's chat or group: website contact messages are forwarded there. Empty: they are only kept for the super admin |
 | `BILLING_COMPANY_NAME`, `_ADDRESS`, `_PHONE`, `_EMAIL`, `_VAT_TIN` | `ModernStock`, empty | Printed at the top of billing invoices and receipts |
 | `app.billing.transfer-accounts` | none (`dev`: a made-up ABA account) | Accounts that Owners pay billing invoices into by bank transfer (`bank`, `name`, `number`). None: bank transfer is not offered |
-| `app.files.dir` | `.data/files` | Where product photos and logos are kept |
+| `app.files.dir` | `.data/files` | Where product photos, logos and receipt photos are kept when no bucket is set |
+| `FILES_S3_BUCKET`, `FILES_S3_ENDPOINT`, `FILES_S3_REGION`, `FILES_S3_ACCESS_KEY`, `FILES_S3_SECRET_KEY` | empty, `ap-southeast-1` | An S3 bucket for those files instead of the folder: Supabase Storage in the cloud, where the server's disk is wiped on every deploy. The bucket stays private; the API serves the files |
+| `MAIL_API_KEY`, `MAIL_FROM` | empty, `ModernStock <no-reply@sokhin.site>` | The email API (Resend). Empty key: nothing is sent; with dev links on, the email is written to the log |
 | `SPRING_PROFILES_ACTIVE` | `dev` | `prod` turns off demo data and dev links, and hides Swagger unless `SWAGGER_ENABLED=true` |
+| `DEMO_DATA` | `false` | With `prod`: `true` seeds the demo business and logins. Only on the dev environment in the cloud, never on prod |
+| `CLIENT_IP_HEADER` | `prod`: `CF-Connecting-IP` | Where the visitor's address comes from, for the rate limits and the activity log (`ClientIpFilter`). Only right when every request comes through Cloudflare |
+
+Deployment, the pipelines and the security settings are in [DevSecOps.md](../doc/plain/DevSecOps.md).
 
 ## Notes for the team
 
 - **Java version:** PLAIN.md 9.1 says Java 21. The project builds with 17 (the JDK on this PC). Once everyone has JDK 21, raise `java.version` in `pom.xml`.
 - **Mapping:** DTOs are Java records mapped by hand, instead of MapStruct. They are short, and Swagger reads them directly.
 - **Testcontainers:** tests use embedded PostgreSQL rather than Testcontainers, because Docker Desktop is not always running. Both use a real PostgreSQL.
-- **Emails:** they are written to the log for now (`MailService`). Use Spring Mail and Mailpit next.
+- **Emails:** `MailService` sends them through Resend when `MAIL_API_KEY` is set (Render's free plan blocks SMTP). Without it, development writes them to the log.
 - **Dates:** the business day is Phnom Penh time (`Dates.today()`). Never use `LocalDate.now()`, which follows the clock of the PC or server.
 - **Native SQL:** `@TenantId` doesn't filter it, so add `business_id` by hand (see `BalanceService`). Don't write `:param is null` for a date parameter either: PostgreSQL can't tell its type when it is null.
 - **New endpoints:** give the controller method a unique, descriptive name, because it becomes the `operationId` the web app's API client uses. `OpenApiExportTest` fails on duplicates.

@@ -91,3 +91,17 @@ app:
     polling: ${TELEGRAM_POLLING:false}
     # Your team's chat or group ID: website contact messages are forwarded there. Empty: only saved (Admin › Messages).
     team-chat-id: ${TELEGRAM_TEAM_CHAT_ID:}
+  mail:
+    # An email API over HTTPS (Resend; Render's free plan blocks SMTP). Empty: nothing is sent (logged with dev-links).
+    api-key: ${MAIL_API_KEY:}
+    from: ${MAIL_FROM:ModernStock <no-reply@sokhin.site>}
+  files:
+    # Product photos, logos and receipt photos: in this folder, or in an S3 bucket when bucket is set
+    # (Supabase Storage in the cloud, where the server's disk is wiped on every deploy).
+    dir: .data/files
+    s3:
+      bucket: ${FILES_S3_BUCKET:}
+      endpoint: ${FILES_S3_ENDPOINT:}
+      region: ${FILES_S3_REGION:ap-southeast-1}
+      access-key: ${FILES_S3_ACCESS_KEY:}
+      secret-key: ${FILES_S3_SECRET_KEY:}

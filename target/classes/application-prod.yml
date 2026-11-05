@@ -2,7 +2,10 @@ app:
   jwt:
     secret: ${JWT_SECRET}
   dev-links: false
-  demo-data: false
+  # The demo business and demo logins: only on the dev environment (DEMO_DATA=true), never on prod
+  demo-data: ${DEMO_DATA:false}
+  # Every request comes through Cloudflare, which puts the visitor's address in this header (ClientIpFilter)
+  client-ip-header: ${CLIENT_IP_HEADER:CF-Connecting-IP}
 
 springdoc:
   swagger-ui:
@@ -11,5 +14,13 @@ springdoc:
     enabled: ${SWAGGER_ENABLED:false}
 
 server:
-  # Behind Nginx: the client's address comes from X-Forwarded-For, trusted only from internal proxies (rate limits)
+  # Cloudflare and Render's proxy end HTTPS: X-Forwarded-Proto from the proxy tells the API the request was https
   forward-headers-strategy: native
+  tomcat:
+    threads:
+      max: 20 # 512 MB of RAM on Render free
+
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5 # Supabase's free pooler has few connections; plenty for one small instance

@@ -91,6 +91,7 @@ com\modernstock\member\InvitationService$SignUpWithInvitationRequest.class
 com\modernstock\report\DashboardService$TopProduct.class
 com\modernstock\catalog\ReorderLevels.class
 com\modernstock\money\AllocationRequest.class
+com\modernstock\config\AppProperties$Mail.class
 com\modernstock\catalog\Category.class
 com\modernstock\currency\ExchangeRateRepository.class
 com\modernstock\inventory\TransferService$ReturnRequest.class
@@ -427,6 +428,7 @@ com\modernstock\inventory\StockCount.class
 com\modernstock\sale\QuotationService$QuotationResponse.class
 com\modernstock\catalog\UnitRepository.class
 com\modernstock\inventory\TransferService$TransferLineResponse.class
+com\modernstock\config\ClientIpFilter$1.class
 com\modernstock\common\DocumentNumberService$DocType.class
 com\modernstock\billing\EntitlementService.class
 com\modernstock\currency\ExchangeRateController$RateRequest.class
@@ -538,6 +540,7 @@ com\modernstock\business\BusinessMember.class
 com\modernstock\purchase\PurchaseReturnService$SupplierCreditApplyRequest.class
 com\modernstock\sale\ReturnService$ReturnableLine.class
 com\modernstock\billing\PlanRepository.class
+com\modernstock\config\ClientIpFilter.class
 com\modernstock\business\BranchRepository.class
 com\modernstock\purchase\PurchaseReturnService$SupplierCreditResponse.class
 com\modernstock\report\ReportService$1.class

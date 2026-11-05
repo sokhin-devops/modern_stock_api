@@ -1,14 +1,11 @@
 package com.modernstock.billing;
 
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -321,13 +318,7 @@ public class BillingController {
 
     /** The screenshot of a bank transfer, never cached. */
     static ResponseEntity<Resource> proof(BillingPayment p, FileStorage files) {
-        Path path = p.getProofPath() == null ? null : files.resolve(p.getProofPath()).filter(Files::isRegularFile).orElse(null);
-        if (path == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(FileStorage.contentType(p.getProofPath())))
-                .header("Cache-Control", "private, no-store").header("X-Content-Type-Options", "nosniff")
-                .body(new FileSystemResource(path));
+        return files.privately(p.getProofPath());
     }
 
     private InvoiceView view(BillingInvoice i) {

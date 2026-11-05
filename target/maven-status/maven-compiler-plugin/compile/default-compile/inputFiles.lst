@@ -94,6 +94,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\TenantRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\common\Tokens.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\config\AppProperties.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\config\ClientIpFilter.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\config\JpaConfig.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\config\OpenApiConfig.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\config\SchedulingConfig.java

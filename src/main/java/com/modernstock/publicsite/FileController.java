@@ -1,10 +1,7 @@
 package com.modernstock.publicsite;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -30,14 +27,14 @@ public class FileController {
     @GetMapping("/public/files/{folder}/{name:.+}")
     public ResponseEntity<Resource> file(@PathVariable String folder, @PathVariable String name) {
         String stored = folder + "/" + name;
-        Path path = FileStorage.isPrivate(folder) ? null : files.resolve(stored).filter(Files::isRegularFile).orElse(null);
-        if (path == null) {
+        Resource file = FileStorage.isPrivate(folder) ? null : files.load(stored).orElse(null);
+        if (file == null) {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(FileStorage.contentType(stored)))
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
                 .header("X-Content-Type-Options", "nosniff")
-                .body(new FileSystemResource(path));
+                .body(file);
     }
 }

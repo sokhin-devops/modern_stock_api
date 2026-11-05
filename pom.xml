@@ -24,6 +24,8 @@
         <embedded-postgres.version>2.1.0</embedded-postgres.version>
         <!-- Rate limits (PLAIN.md 7, 9.1). Apache-2.0, no licence key; pinned. -->
         <bucket4j.version>8.16.1</bucket4j.version>
+        <!-- Pictures in Supabase Storage through its S3 endpoint (FileStorage, DevSecOps.md C4). Apache-2.0. -->
+        <aws-sdk.version>2.57.9</aws-sdk.version>
     </properties>
 
     <dependencies>
@@ -73,6 +75,27 @@
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j_jdk17-core</artifactId>
             <version>${bucket4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws-sdk.version}</version>
+            <exclusions>
+                <!-- FileStorage uses the JDK's HTTP client below: keeps Netty and Apache HttpClient out of the image -->
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>${aws-sdk.version}</version>
         </dependency>
 
         <dependency>

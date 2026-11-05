@@ -1,0 +1,15 @@
+// Cron-only Worker, deployed by hand from this folder (doc/plain/DevSecOps.md 6.10).
+// The secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set with `wrangler secret put`, not here: the repo is public.
+{
+  "name": "modern-stock-keepalive",
+  "main": "keepalive.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "triggers": {
+    // every 10 minutes from 06:00 to 21:50 Phnom Penh time (UTC+7)
+    "crons": ["*/10 0-14,23 * * *"]
+  },
+  "vars": {
+    "HEALTH_URL": "https://api.sokhin.site/api/v1/actuator/health"
+  }
+}
