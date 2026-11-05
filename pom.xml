@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.14</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -26,6 +26,11 @@
         <bucket4j.version>8.16.1</bucket4j.version>
         <!-- Pictures in Supabase Storage through its S3 endpoint (FileStorage, DevSecOps.md C4). Apache-2.0. -->
         <aws-sdk.version>2.57.9</aws-sdk.version>
+        <!-- Newer patch releases than Spring Boot 3.5.16 brings, for the security fixes Trivy asks for
+             (DevSecOps.md section 7). Remove each one once Spring Boot manages that version or a newer one. -->
+        <tomcat.version>10.1.61</tomcat.version>
+        <jackson-bom.version>2.21.8</jackson-bom.version>
+        <postgresql.version>42.7.14</postgresql.version>
     </properties>
 
     <dependencies>
@@ -89,6 +94,10 @@
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>
                     <artifactId>apache-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache5-client</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

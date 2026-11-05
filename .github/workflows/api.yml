@@ -61,10 +61,14 @@ jobs:
 
       - name: Image scan and SBOM (Trivy)
         run: |
-          trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache -v "$PWD:/work" -w /work "$TRIVY" "$@"; }
-          trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:ci"
+          trivy() { docker run --rm -v trivy-cache:/root/.cache -v "$PWD:/work" -w /work "$TRIVY" "$@"; }
           trivy config --severity HIGH,CRITICAL --exit-code 1 .
-          trivy image --format cyclonedx --output sbom.cdx.json "$IMAGE:ci"
+          # Scanned from a saved file: reading a JRE image through the Docker socket can pass Trivy's 5-minute limit.
+          # No secret scanner here: gitleaks covers the repo, and .dockerignore lets only the jar into the image.
+          docker save "$IMAGE:ci" -o image.tar
+          trivy image --input image.tar --timeout 15m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+          trivy image --input image.tar --timeout 15m --format cyclonedx --output sbom.cdx.json
+          rm image.tar
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
