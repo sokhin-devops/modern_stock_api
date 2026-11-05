@@ -13,6 +13,7 @@ import java.util.Map;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
@@ -26,6 +27,7 @@ import com.modernstock.common.ApiException;
 import com.modernstock.common.Dates;
 import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.DocumentNumberService;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.inventory.StockMovement;
@@ -117,7 +119,8 @@ public class PurchaseService {
     public record BillResponse(Long id, String number, Long supplierId, String supplierName, Long branchId,
                                Long goodsReceiptId, String supplierInvoiceNo, LocalDate billDate, LocalDate dueDate,
                                BigDecimal total, BigDecimal paidAmount, BigDecimal balance, Bill.Status status,
-                               boolean overdue, String note) {
+                               boolean overdue, String note,
+                               @Schema(description = "A photo of the supplier's invoice is attached (GET /bills/{id}/photo)") boolean hasPhoto) {
     }
 
     public record BillUpdateRequest(@Size(max = 40) String supplierInvoiceNo, LocalDate dueDate,
@@ -164,6 +167,7 @@ public class PurchaseService {
     private final CurrencyService currency;
     private final DocumentNumberService numbers;
     private final BranchService branches;
+    private final FileStorage files;
     private final BranchScope scope;
 
     // ------------------------------------------------------------------ purchase orders
@@ -371,6 +375,25 @@ public class PurchaseService {
         return toResponse(b);
     }
 
+    /** The stored photo of a bill's paper invoice, for someone who may see the bill. */
+    @Transactional(readOnly = true)
+    public String billPhoto(Long id) {
+        Bill b = bills.get(id);
+        BusinessContext.requireBranch(b.getBranchId());
+        return b.getPhotoPath();
+    }
+
+    /** Attaches (or replaces) the photo of the supplier's paper invoice; null removes it. */
+    @Transactional
+    public BillResponse setBillPhoto(Long id, MultipartFile file) {
+        Bill b = bills.get(id);
+        BusinessContext.requireBranch(b.getBranchId());
+        String old = b.getPhotoPath();
+        b.setPhotoPath(file == null ? null : files.saveImage(file, FileStorage.PRIVATE_DOCUMENTS));
+        files.delete(old);
+        return toResponse(b);
+    }
+
     @Transactional
     public BillResponse updateBill(Long id, BillUpdateRequest req) {
         Bill b = bills.get(id);
@@ -535,6 +558,6 @@ public class PurchaseService {
                 && b.getDueDate().isBefore(Dates.today());
         return new BillResponse(b.getId(), b.getNumber(), b.getSupplierId(), suppliers.get(b.getSupplierId()).getName(),
                 b.getBranchId(), b.getGoodsReceiptId(), b.getSupplierInvoiceNo(), b.getBillDate(), b.getDueDate(),
-                b.getTotal(), b.getPaidAmount(), b.open(), b.getStatus(), overdue, b.getNote());
+                b.getTotal(), b.getPaidAmount(), b.open(), b.getStatus(), overdue, b.getNote(), b.getPhotoPath() != null);
     }
 }

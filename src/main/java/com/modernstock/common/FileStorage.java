@@ -10,6 +10,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +28,8 @@ public class FileStorage {
     public static final long MAX_BYTES = 2L * 1024 * 1024;
     /** Bank transfer screenshots (FR-10.14): never served at /public/files, only to the Owner and the super admin. */
     public static final String PRIVATE_TRANSFERS = "transfers";
+    /** Photos of expense receipts and supplier invoices: never public, served by the expense and bill endpoints. */
+    public static final String PRIVATE_DOCUMENTS = "documents";
     private static final Map<String, String> TYPES = Map.of("jpg", "image/jpeg", "png", "image/png", "webp", "image/webp");
 
     private final Path root;
@@ -75,6 +81,22 @@ public class FileStorage {
     public Optional<Path> resolve(String name) {
         Path path = root.resolve(name).normalize();
         return path.startsWith(root) ? Optional.of(path) : Optional.empty();
+    }
+
+    /** Folders whose files are never served at /public/files. */
+    public static boolean isPrivate(String folder) {
+        return PRIVATE_TRANSFERS.equals(folder) || PRIVATE_DOCUMENTS.equals(folder);
+    }
+
+    /** A private picture for someone allowed to see it: not cached, 404 when it is gone. */
+    public ResponseEntity<Resource> privately(String name) {
+        Path path = name == null ? null : resolve(name).filter(Files::isRegularFile).orElse(null);
+        if (path == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType(name)))
+                .header("Cache-Control", "private, no-store").header("X-Content-Type-Options", "nosniff")
+                .body(new FileSystemResource(path));
     }
 
     public static String contentType(String name) {

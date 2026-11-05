@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.activity.ActivityService;
 import com.modernstock.business.BranchScope;
@@ -15,6 +16,7 @@ import com.modernstock.business.BusinessContext;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.DocumentNumberService;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.money.Payment;
@@ -54,7 +56,8 @@ public class ExpenseService {
     public record ExpenseResponse(Long id, String number, Long branchId, Long categoryId, String categoryName, Long supplierId,
                                   LocalDate expenseDate, Payment.Method method, Payment.Currency currency, BigDecimal amount,
                                   BigDecimal exchangeRate, BigDecimal amountUsd, String reference, String note,
-                                  Expense.Status status) {
+                                  Expense.Status status,
+                                  @Schema(description = "A photo of the receipt is attached (GET /expenses/{id}/photo)") boolean hasPhoto) {
     }
 
     /** First categories of a new business, so the first expense needs no setup. */
@@ -68,6 +71,7 @@ public class ExpenseService {
     private final DocumentNumberService numbers;
     private final CurrencyService currency;
     private final BranchScope scope;
+    private final FileStorage files;
 
     @Transactional
     public List<CategoryResponse> categories() {
@@ -135,6 +139,25 @@ public class ExpenseService {
         return toResponse(expenses.save(e), List.of(category));
     }
 
+    /** The stored photo of an expense's receipt, for someone who may see the expense. */
+    @Transactional(readOnly = true)
+    public String photo(Long id) {
+        Expense e = expenses.get(id);
+        BusinessContext.requireBranch(e.getBranchId());
+        return e.getPhotoPath();
+    }
+
+    /** Attaches (or replaces) the receipt photo; null removes it. */
+    @Transactional
+    public ExpenseResponse setPhoto(Long id, MultipartFile file) {
+        Expense e = expenses.get(id);
+        BusinessContext.requireBranch(e.getBranchId());
+        String old = e.getPhotoPath();
+        e.setPhotoPath(file == null ? null : files.saveImage(file, FileStorage.PRIVATE_DOCUMENTS));
+        files.delete(old);
+        return toResponse(e, categories.findAll());
+    }
+
     @Transactional
     public ExpenseResponse voidExpense(Long id) {
         Expense e = expenses.get(id);
@@ -153,6 +176,6 @@ public class ExpenseService {
         String name = all.stream().filter(c -> c.getId().equals(e.getCategoryId())).map(ExpenseCategory::getNameEn).findFirst().orElse("");
         return new ExpenseResponse(e.getId(), e.getNumber(), e.getBranchId(), e.getCategoryId(), name, e.getSupplierId(),
                 e.getExpenseDate(), e.getMethod(), e.getCurrency(), e.getAmount(), e.getExchangeRate(), e.getAmountUsd(),
-                e.getReference(), e.getNote(), e.getStatus());
+                e.getReference(), e.getNote(), e.getStatus(), e.getPhotoPath() != null);
     }
 }

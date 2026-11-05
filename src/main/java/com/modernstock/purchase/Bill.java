@@ -53,6 +53,8 @@ public class Bill extends TenantEntity {
     @Column(nullable = false)
     private Status status;
     private String note;
+    /** The supplier's paper invoice (FR-2.14), in the private documents folder. */
+    private String photoPath;
 
     public BigDecimal open() {
         return total.subtract(paidAmount);

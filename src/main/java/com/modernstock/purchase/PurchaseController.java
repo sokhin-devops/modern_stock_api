@@ -5,9 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,8 +23,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.business.BranchScope;
+import com.modernstock.common.FileStorage;
 import com.modernstock.common.PageResponse;
 import com.modernstock.money.Allocation;
 import com.modernstock.money.AllocationRepository;
@@ -31,12 +36,12 @@ import com.modernstock.money.PaymentResponse;
 import com.modernstock.partner.SupplierRepository;
 import com.modernstock.purchase.PurchaseService.BillResponse;
 import com.modernstock.purchase.PurchaseService.BillUpdateRequest;
+import com.modernstock.purchase.PurchaseService.GoodsReceiptRequest;
 import com.modernstock.purchase.PurchaseService.GoodsReceiptResponse;
 import com.modernstock.purchase.PurchaseService.PurchaseOrderRequest;
 import com.modernstock.purchase.PurchaseService.PurchaseOrderResponse;
 import com.modernstock.purchase.PurchaseService.QuickPurchaseRequest;
 import com.modernstock.purchase.PurchaseService.QuickPurchaseResponse;
-import com.modernstock.purchase.PurchaseService.GoodsReceiptRequest;
 import com.modernstock.purchase.PurchaseService.SupplierPaymentRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +59,7 @@ public class PurchaseController {
     private final AllocationRepository allocations;
     private final BranchScope scope;
     private final SupplierRepository suppliers;
+    private final FileStorage files;
 
     @GetMapping("/purchase-orders")
     @PreAuthorize("hasAuthority('purchase_order:view')")
@@ -156,6 +162,26 @@ public class PurchaseController {
     @PreAuthorize("hasAuthority('bill:manage')")
     public BillResponse getBill(@PathVariable Long id) {
         return purchases.bill(id);
+    }
+
+    @Operation(summary = "The photo of the supplier's invoice", description = "FR-2.14: private, not cached; 404 without one.")
+    @GetMapping("/bills/{id}/photo")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public ResponseEntity<Resource> billPhoto(@PathVariable Long id) {
+        return files.privately(purchases.billPhoto(id));
+    }
+
+    @Operation(summary = "Attach a photo of the supplier's invoice", description = "JPEG, PNG or WebP up to 2 MB; replaces the one before.")
+    @PostMapping(value = "/bills/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public BillResponse attachBillPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return purchases.setBillPhoto(id, file);
+    }
+
+    @DeleteMapping("/bills/{id}/photo")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public BillResponse removeBillPhoto(@PathVariable Long id) {
+        return purchases.setBillPhoto(id, null);
     }
 
     @Operation(summary = "Add the supplier's invoice number, change the due date or note")

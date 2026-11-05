@@ -46,6 +46,8 @@ public class Expense extends TenantEntity {
     private BigDecimal amountUsd;
     private String reference;
     private String note;
+    /** The receipt (FR-2.10), in the private documents folder. */
+    private String photoPath;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.POSTED;
