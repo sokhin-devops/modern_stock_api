@@ -136,7 +136,7 @@ public class AdjustmentService {
         }
         adjustments.save(adj);
         if (canPost) {
-            post(adj);
+            adj = post(adj);
             logPosted("ADJUSTMENT_POSTED", adj);
         } else {
             events.publishEvent(new TelegramAlerts.ApprovalWaiting(BusinessContext.businessId(), TelegramAlerts.Waiting.ADJUSTMENT,
@@ -149,7 +149,7 @@ public class AdjustmentService {
     public AdjustmentResponse approve(Long id) {
         StockAdjustment adj = waiting(id);
         adj.setStatus(StockAdjustment.Status.POSTED);
-        post(adj);
+        adj = post(adj);
         logPosted("ADJUSTMENT_APPROVED", adj);
         return toResponse(adj);
     }
@@ -235,12 +235,15 @@ public class AdjustmentService {
         return adj;
     }
 
-    private void post(StockAdjustment adj) {
+    /** Returns the adjustment to go on with: a long one comes back as a new instance (see StockService.lighten). */
+    private StockAdjustment post(StockAdjustment adj) {
         StockService.Ref ref = new StockService.Ref(REF, adj.getId());
         StockMovement.Type type = adj.getKind() == StockAdjustment.Kind.OPENING
                 ? StockMovement.Type.OPENING : StockMovement.Type.ADJUSTMENT;
         List<StockAdjustmentItem> sorted = adj.getItems().stream()
                 .sorted(Comparator.comparing(StockAdjustmentItem::getProductId)).toList();
+        boolean detached = false;
+        int done = 0;
         for (StockAdjustmentItem item : sorted) {
             Product p = products.active(item.getProductId());
             if (item.getQtyChange().signum() > 0) {
@@ -259,9 +262,11 @@ public class AdjustmentService {
                     item.setExpiryDate(picks.get(0).expiryDate());
                 }
             }
+            detached |= stock.lighten(++done);
         }
         adj.setPostedAt(Instant.now());
         adj.setApprovedBy(CurrentUser.idOrNull());
+        return detached ? stock.reattach(adj) : adj;
     }
 
     private StockAdjustment waiting(Long id) {

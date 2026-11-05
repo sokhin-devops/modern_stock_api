@@ -242,20 +242,28 @@ public class StockCountService {
         readyToPost(c);
         StockService.Ref ref = new StockService.Ref(REF, c.getId());
         Map<Long, Product> byId = productService.byIds(c.getItems().stream().map(StockCountItem::getProductId).toList());
-        c.getItems().stream()
+        List<StockCountItem> sorted = c.getItems().stream()
                 .sorted(Comparator.comparing(StockCountItem::getProductId).thenComparing(StockCountItem::getWarehouseId))
-                .forEach(item -> {
-                    if (item.getCountedQty() == null) {
-                        return;
-                    }
-                    BigDecimal diff = item.getCountedQty().subtract(item.getSystemQty());
-                    Product p = byId.get(item.getProductId());
-                    if (diff.signum() > 0) {
-                        stock.receive(p, item.getWarehouseId(), diff, item.getUnitCost(), null, null, StockMovement.Type.COUNT_ADJUST, ref);
-                    } else if (diff.signum() < 0) {
-                        stock.issue(p, item.getWarehouseId(), diff.negate(), StockMovement.Type.COUNT_ADJUST, ref, true);
-                    }
-                });
+                .toList();
+        boolean detached = false;
+        int done = 0;
+        for (StockCountItem item : sorted) {
+            // a whole shop is 10,000 lines: the session is let go of every 100 (count adjustments leave product costs alone)
+            detached |= stock.lighten(++done);
+            if (item.getCountedQty() == null) {
+                continue;
+            }
+            BigDecimal diff = item.getCountedQty().subtract(item.getSystemQty());
+            Product p = byId.get(item.getProductId());
+            if (diff.signum() > 0) {
+                stock.receive(p, item.getWarehouseId(), diff, item.getUnitCost(), null, null, StockMovement.Type.COUNT_ADJUST, ref);
+            } else if (diff.signum() < 0) {
+                stock.issue(p, item.getWarehouseId(), diff.negate(), StockMovement.Type.COUNT_ADJUST, ref, true);
+            }
+        }
+        if (detached) {
+            c = stock.reattach(c);
+        }
         c.setStatus(StockCount.Status.POSTED);
         c.setPostedAt(Instant.now());
         CountResponse posted = toResponse(c, true);

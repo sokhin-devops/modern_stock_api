@@ -23,6 +23,8 @@ import com.modernstock.common.CurrentUser;
 import com.modernstock.common.Dates;
 import com.modernstock.notification.TelegramAlerts;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -43,6 +45,8 @@ public class StockService {
     }
 
     private static final int COST_SCALE = 4;
+    /** Lines of a long document between two {@link #lighten} flushes. */
+    private static final int LINES_PER_FLUSH = 100;
 
     private final StockLevelRepository levels;
     private final StockBatchRepository batches;
@@ -52,6 +56,9 @@ public class StockService {
     private final SettingsService settings;
     private final JdbcTemplate jdbc;
     private final ApplicationEventPublisher events;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * Stock in. Purchases and opening stock update the weighted average cost; transfers, returns and
@@ -245,6 +252,28 @@ public class StockService {
             locked.setAvgCost(oldQty.multiply(locked.getAvgCost()).add(qty.multiply(unitCost))
                     .divide(oldQty.add(qty), COST_SCALE, RoundingMode.HALF_UP));
         }
+    }
+
+    /**
+     * For long documents (an opening stock import of 2,000 lines, a count of a whole shop): before each query Hibernate
+     * looks through every entity it holds for changes, so posting slowed down with the square of the lines (3 minutes for
+     * 2,000). Call after each line: every 100 lines this writes what changed and lets go of the entities. True when it
+     * did; the document is then detached, and the caller puts it back with {@link #reattach} once its lines are done.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean lighten(int linesDone) {
+        if (linesDone % LINES_PER_FLUSH != 0) {
+            return false;
+        }
+        entityManager.flush();
+        entityManager.clear();
+        return true;
+    }
+
+    /** A document let go by {@link #lighten}, back in the session with what changed since (its lines too). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public <T> T reattach(T document) {
+        return entityManager.merge(document);
     }
 
     /** Creates the stock row if it is the first time this product is in this warehouse, then locks it. */
