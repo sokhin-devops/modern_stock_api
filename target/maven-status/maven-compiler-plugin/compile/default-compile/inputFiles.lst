@@ -157,6 +157,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\PartnerController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\Supplier.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\partner\SupplierRepository.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\publicsite\ContactForwarder.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\publicsite\ContactMessage.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\publicsite\ContactMessageRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\publicsite\FileController.java

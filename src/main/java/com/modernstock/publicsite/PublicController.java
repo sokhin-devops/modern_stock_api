@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,7 @@ public class PublicController {
     private final PlanRepository plans;
     private final ContactMessageRepository contactMessages;
     private final InvitationService invitations;
+    private final ApplicationEventPublisher events;
 
     @Operation(summary = "Plans for the Pricing page", description = "The website reads prices from here, so they always match billing.")
     @GetMapping("/plans")
@@ -58,9 +60,11 @@ public class PublicController {
         return plans.findByPublicPlanTrueOrderBySortOrder().stream().map(PublicController::toResponse).toList();
     }
 
-    @Operation(summary = "Send a message from the website contact form")
+    @Operation(summary = "Send a message from the website contact form",
+            description = "Saved for the super admin (Admin › Messages) and forwarded to the team's Telegram chat when one is set.")
     @PostMapping("/contact")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @Transactional
     public void sendContactMessage(@Valid @RequestBody ContactRequest req) {
         ContactMessage m = new ContactMessage();
         m.setName(req.name());
@@ -69,6 +73,7 @@ public class PublicController {
         m.setMessage(req.message());
         m.setLanguage(req.language() == null ? "km" : req.language());
         contactMessages.save(m);
+        events.publishEvent(new ContactForwarder.ContactReceived(m.getId()));
     }
 
     @Operation(summary = "Invitation details for the invitation page",

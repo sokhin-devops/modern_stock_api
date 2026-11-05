@@ -36,8 +36,9 @@ public record AppProperties(
     /**
      * The bot that sends Telegram messages; empty token = Telegram is off on this server. Telegram reaches the API by
      * the webhook (webhookUrl, registered at start, checked with webhookSecret), or, in development without a public
-     * URL, the API asks Telegram for new messages every few seconds (polling).
+     * URL, the API asks Telegram for new messages every few seconds (polling). Website contact messages go to teamChatId.
      */
-    public record Telegram(String botToken, String botUsername, String webhookUrl, String webhookSecret, boolean polling) {
+    public record Telegram(String botToken, String botUsername, String webhookUrl, String webhookSecret, boolean polling,
+                           String teamChatId) {
     }
 }

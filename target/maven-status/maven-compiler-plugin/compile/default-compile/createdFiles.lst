@@ -6,6 +6,7 @@ com\modernstock\config\AppProperties.class
 com\modernstock\auth\AuthService$MessageResponse.class
 com\modernstock\member\MemberService$MemberResponse.class
 com\modernstock\report\MoneyReportService$Statement.class
+com\modernstock\publicsite\ContactForwarder$ContactReceived.class
 com\modernstock\purchase\PurchaseService$PoLineRequest.class
 com\modernstock\business\Warehouse.class
 com\modernstock\inventory\StockCount$Status.class
@@ -403,8 +404,10 @@ com\modernstock\common\Tokens.class
 com\modernstock\account\AccountController$ChangePasswordRequest.class
 com\modernstock\sale\CreditNote.class
 com\modernstock\auth\JwtService.class
+com\modernstock\publicsite\ContactForwarder.class
 com\modernstock\common\ApiException.class
 com\modernstock\catalog\CatalogController$CategoryResponse.class
+com\modernstock\config\AppProperties$Company.class
 com\modernstock\billing\PlanLimits.class
 com\modernstock\inventory\StockTransfer$Kind.class
 com\modernstock\money\Payment$Status.class

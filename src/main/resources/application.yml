@@ -89,3 +89,5 @@ app:
     webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:}
     # Development without a public URL: ask Telegram for new messages every 3 seconds instead of the webhook.
     polling: ${TELEGRAM_POLLING:false}
+    # Your team's chat or group ID: website contact messages are forwarded there. Empty: only saved (Admin › Messages).
+    team-chat-id: ${TELEGRAM_TEAM_CHAT_ID:}
