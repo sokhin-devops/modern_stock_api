@@ -17,8 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.modernstock.common.PageResponse;
 import com.modernstock.inventory.AdjustmentService.AdjustmentRequest;
 import com.modernstock.inventory.AdjustmentService.AdjustmentResponse;
-import com.modernstock.inventory.TransferService.TransferReceiveRequest;
+import com.modernstock.inventory.StockRequestService.DeclineRequest;
+import com.modernstock.inventory.StockRequestService.FulfilRequest;
+import com.modernstock.inventory.StockRequestService.StockRequestCreate;
+import com.modernstock.inventory.StockRequestService.StockRequestResponse;
 import com.modernstock.inventory.TransferService.ReturnRequest;
+import com.modernstock.inventory.TransferService.TransferReceiveRequest;
 import com.modernstock.inventory.TransferService.TransferRequest;
 import com.modernstock.inventory.TransferService.TransferResponse;
 
@@ -34,6 +38,7 @@ public class InventoryController {
 
     private final AdjustmentService adjustments;
     private final TransferService transfers;
+    private final StockRequestService stockRequests;
 
     // ------------------------------------------------------------------ adjustments
 
@@ -76,6 +81,56 @@ public class InventoryController {
     @PreAuthorize("hasAuthority('adjustment:approve')")
     public AdjustmentResponse rejectAdjustment(@PathVariable Long id) {
         return adjustments.reject(id);
+    }
+
+    // ------------------------------------------------------------------ transfer requests (FR-4.11)
+
+    @Tag(name = "Transfers")
+    @Operation(summary = "Transfer requests of the branches you see", description = "A request shows for the branch that asks and the branch asked.")
+    @GetMapping("/transfer-requests")
+    @PreAuthorize("hasAuthority('stock:view')")
+    public PageResponse<StockRequestResponse> listTransferRequests(@RequestParam(required = false) StockRequest.Status status,
+                                                                   @ParameterObject Pageable pageable) {
+        return stockRequests.list(status, pageable);
+    }
+
+    @Tag(name = "Transfers")
+    @GetMapping("/transfer-requests/{id}")
+    @PreAuthorize("hasAuthority('stock:view')")
+    public StockRequestResponse getTransferRequest(@PathVariable Long id) {
+        return stockRequests.get(id);
+    }
+
+    @Tag(name = "Transfers")
+    @Operation(summary = "Ask another branch for goods", description = "From the selected branch (or toBranchId) to fromBranchId.")
+    @PostMapping("/transfer-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('transfer:manage')")
+    public StockRequestResponse createTransferRequest(@Valid @RequestBody StockRequestCreate req) {
+        return stockRequests.create(req);
+    }
+
+    @Tag(name = "Transfers")
+    @Operation(summary = "Make the transfer",
+            description = "By the branch asked: a draft transfer with the lines asked for, from its sales warehouse unless another is given.")
+    @PostMapping("/transfer-requests/{id}/transfer")
+    @PreAuthorize("hasAuthority('transfer:manage')")
+    public StockRequestResponse fulfilTransferRequest(@PathVariable Long id, @RequestBody(required = false) FulfilRequest req) {
+        return stockRequests.fulfil(id, req);
+    }
+
+    @Tag(name = "Transfers")
+    @PostMapping("/transfer-requests/{id}/decline")
+    @PreAuthorize("hasAuthority('transfer:manage')")
+    public StockRequestResponse declineTransferRequest(@PathVariable Long id, @Valid @RequestBody DeclineRequest req) {
+        return stockRequests.decline(id, req);
+    }
+
+    @Tag(name = "Transfers")
+    @PostMapping("/transfer-requests/{id}/cancel")
+    @PreAuthorize("hasAuthority('transfer:manage')")
+    public StockRequestResponse cancelTransferRequest(@PathVariable Long id) {
+        return stockRequests.cancel(id);
     }
 
     // ------------------------------------------------------------------ transfers

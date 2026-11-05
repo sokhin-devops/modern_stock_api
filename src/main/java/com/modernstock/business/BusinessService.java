@@ -71,7 +71,8 @@ public class BusinessService {
             @Size(max = 255) String address,
             @Size(max = 60) String province,
             @Size(max = 30) String vatTin,
-            @Schema(description = "Palette name or #hex", example = "#1A73E8") @Size(max = 20) String themeColor,
+            @Schema(description = "A palette (blue, indigo, purple, teal, green) or an own #rrggbb (FR-6.26): darkened until white "
+                    + "text on it is readable; red-like and nearly gray colors are refused", example = "#1A73E8") @Size(max = 20) String themeColor,
             @Pattern(regexp = "km|en") String language) {
     }
 
@@ -228,7 +229,7 @@ public class BusinessService {
         b.setAddress(req.address());
         b.setProvince(req.province());
         b.setVatTin(req.vatTin());
-        b.setThemeColor(req.themeColor());
+        b.setThemeColor(ThemeColors.normalize(req.themeColor()));
         if (req.language() != null) {
             b.setLanguage(req.language());
         }

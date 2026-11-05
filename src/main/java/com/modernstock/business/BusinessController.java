@@ -41,6 +41,7 @@ public class BusinessController {
     private final FileStorage files;
     private final ActivityService activity;
     private final ObjectMapper json;
+    private final ExportService exports;
 
     @Operation(summary = "The open business")
     @GetMapping
@@ -130,6 +131,19 @@ public class BusinessController {
     @PreAuthorize("hasAuthority('business:manage') and hasAuthority('billing:manage')")
     public void archiveBusiness() {
         businesses.archive();
+    }
+
+    @Operation(summary = "Export all data",
+            description = "FR-7.12: every table of the business (products, stock, customers, sales, money, purchases, stock moves) "
+                    + "for one Excel file that the web app writes. Needs Excel export in the plan (422 EXPORT_NOT_IN_PLAN).")
+    @GetMapping("/export")
+    @PreAuthorize("hasAuthority('business:manage')")
+    public ExportService.Export exportAll() {
+        if (!entitlements.hasFeature(EntitlementService.EXCEL_EXPORT)) {
+            throw com.modernstock.common.ApiException.rule("EXPORT_NOT_IN_PLAN");
+        }
+        activity.record("DATA_EXPORTED", "BUSINESS", BusinessContext.businessId(), null, null, null, null);
+        return exports.export();
     }
 
     @PutMapping("/settings")

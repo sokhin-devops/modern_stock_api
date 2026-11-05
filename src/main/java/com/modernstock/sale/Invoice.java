@@ -58,6 +58,8 @@ public class Invoice extends TenantEntity {
     @Column(nullable = false)
     private Status status;
     private String note;
+    /** A debit note: the invoice it adds to (FR-3.19). */
+    private Long relatedInvoiceId;
 
     public BigDecimal open() {
         return total.subtract(paidAmount);

@@ -111,7 +111,7 @@ public class SaleDocuments {
     }
 
     /** Money the customer paid before (a deposit, FR-3.13) pays the new invoice first, oldest first (PLAIN.md 11.8). */
-    private void useDeposits(Invoice invoice) {
+    void useDeposits(Invoice invoice) {
         for (Payment p : paymentRecords.unallocated(Payment.PartyType.CUSTOMER, invoice.getCustomerId(), Payment.Direction.IN)) {
             if (invoice.open().signum() <= 0) {
                 break;

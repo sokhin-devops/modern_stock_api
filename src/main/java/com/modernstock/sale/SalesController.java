@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.modernstock.common.PageResponse;
+import com.modernstock.sale.DebitNoteService.DebitNoteRequest;
 import com.modernstock.money.PaymentResponse;
 import com.modernstock.sale.CashShiftService.CashMovementRequest;
 import com.modernstock.sale.CashShiftService.CashShiftResponse;
@@ -38,6 +39,7 @@ public class SalesController {
 
     private final PosService pos;
     private final CashShiftService cashShifts;
+    private final DebitNoteService debitNotes;
 
     // ------------------------------------------------------------------ POS
 
@@ -110,6 +112,24 @@ public class SalesController {
     @PreAuthorize("hasAnyAuthority('delivery:manage', 'sale:create')")
     public DeliveryResponse getDelivery(@PathVariable Long id) {
         return pos.delivery(id);
+    }
+
+    @Tag(name = "POS")
+    @Operation(summary = "A debit note", description = "FR-3.19: the customer owes more after an invoice (a price correction, a "
+            + "charge). An invoice of type DEBIT_NOTE without goods, paid like any invoice; deposits pay it first.")
+    @PostMapping("/debit-notes")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('sale:void')")
+    public InvoiceResponse createDebitNote(@Valid @RequestBody DebitNoteRequest req) {
+        return debitNotes.create(req);
+    }
+
+    @Tag(name = "POS")
+    @Operation(summary = "Void a debit note", description = "Only while nothing has paid it (422 DEBIT_NOTE_PAID).")
+    @PostMapping("/debit-notes/{id}/void")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public InvoiceResponse voidDebitNote(@PathVariable Long id) {
+        return debitNotes.voidNote(id);
     }
 
     @Tag(name = "POS")

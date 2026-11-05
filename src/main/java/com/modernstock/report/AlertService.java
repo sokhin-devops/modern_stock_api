@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class AlertService {
 
     public enum Kind {
-        PAYMENT_DUE, EXPIRED, OVERDUE_BILLS, TRIAL_ENDING, LOW_STOCK, EXPIRING_1, OVERDUE_INVOICES, TRANSFERS_LATE, APPROVALS, TO_RECEIVE,
+        PAYMENT_DUE, EXPIRED, OVERDUE_BILLS, TRIAL_ENDING, LOW_STOCK, EXPIRING_1, OVERDUE_INVOICES, TRANSFERS_LATE, APPROVALS, TO_RECEIVE, TRANSFER_REQUESTS,
         COUNTS_OPEN, COUNTS_TO_APPROVE, RETURNS_TO_APPROVE, PURCHASE_RETURNS_TO_APPROVE, RENEWAL_SOON,
         EXPIRING_2, EXPIRING_3
     }
@@ -91,6 +91,11 @@ public class AlertService {
                        and (from_warehouse_id in (:warehouses) or to_warehouse_id in (:warehouses))
                     """, p.addValue("lateDays", TransferService.LATE_DAYS), Long.class);
             add(list, Kind.TRANSFERS_LATE, Level.WARN, late, TransferService.LATE_DAYS);
+            // FR-4.11: other branches ask this one for goods
+            Long asked = jdbc.queryForObject("""
+                    select count(*) from stock_requests where business_id = :business and status = 'OPEN' and from_branch_id in (:branches)
+                    """, p.addValue("branches", scope.branchIds()), Long.class);
+            add(list, Kind.TRANSFER_REQUESTS, Level.INFO, asked);
         }
         DashboardService.Waiting waiting = dashboard.waiting();
         if (waiting != null) {

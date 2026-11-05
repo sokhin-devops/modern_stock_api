@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 public class DocumentNumberService {
 
     public enum DocType {
-        PO, GRN, BILL, PAY, PRT, SC, EXP, ADJ, TRF, CNT, QO, SO, DO, INV, TAX, DN, RCT, RCV, SR, CN
+        PO, GRN, BILL, PAY, PRT, SC, EXP, ADJ, TRF, CNT, QO, SO, DO, INV, TAX, DN, RCT, RCV, SR, CN, TRQ
     }
 
     /** Settings key of a type's own prefix: number_prefix_INV. */

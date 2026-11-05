@@ -113,7 +113,10 @@ public class PosService {
                                   Long customerId, String customerName, LocalDate invoiceDate, LocalDate dueDate,
                                   BigDecimal exchangeRate, BigDecimal subtotal, BigDecimal discount, BigDecimal vat,
                                   BigDecimal total, BigDecimal totalKhr, BigDecimal paidAmount, BigDecimal balance,
-                                  Invoice.Status status, boolean overdue, List<SaleLineResponse> lines) {
+                                  Invoice.Status status, boolean overdue, List<SaleLineResponse> lines,
+                                  @Schema(description = "A debit note: why the customer owes more") String note,
+                                  @Schema(description = "A debit note: the invoice it adds to") Long relatedInvoiceId,
+                                  String relatedInvoiceNumber) {
     }
 
     public record DeliveryResponse(Long id, String number, Long branchId, Long warehouseId, Long customerId,
@@ -398,7 +401,8 @@ public class PosService {
         return new InvoiceResponse(i.getId(), i.getNumber(), i.getType(), i.getBranchId(), i.getDeliveryId(),
                 i.getCustomerId(), customers.get(i.getCustomerId()).getName(), i.getInvoiceDate(), i.getDueDate(),
                 i.getExchangeRate(), i.getSubtotal(), i.getDiscount(), i.getVat(), i.getTotal(), i.getTotalKhr(),
-                i.getPaidAmount(), i.open(), i.getStatus(), overdue, lines);
+                i.getPaidAmount(), i.open(), i.getStatus(), overdue, lines, i.getNote(), i.getRelatedInvoiceId(),
+                i.getRelatedInvoiceId() == null ? null : invoices.get(i.getRelatedInvoiceId()).getNumber());
     }
 
     private DeliveryResponse toResponse(Delivery d) {
