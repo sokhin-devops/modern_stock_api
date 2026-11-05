@@ -130,6 +130,7 @@ com\modernstock\sale\SalesOrderService$DeliverResponse.class
 com\modernstock\report\DashboardService$DayPoint.class
 com\modernstock\purchase\PurchaseReturnService$PurchaseReturnResponse.class
 com\modernstock\billing\BillingController$PlanView.class
+com\modernstock\business\ExpiryWindows.class
 com\modernstock\sale\SalesOrderService$OrderDelivery.class
 com\modernstock\business\BusinessSettingRepository.class
 com\modernstock\sale\CashShiftService$CloseShiftRequest.class

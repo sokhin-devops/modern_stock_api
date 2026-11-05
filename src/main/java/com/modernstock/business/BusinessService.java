@@ -12,6 +12,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.modernstock.activity.ActivityService;
 import com.modernstock.admin.PlatformSettings;
+import com.modernstock.billing.BillingInvoice;
+import com.modernstock.billing.BillingInvoiceRepository;
 import com.modernstock.billing.Plan;
 import com.modernstock.billing.PlanRepository;
 import com.modernstock.billing.Subscription;
@@ -109,14 +111,12 @@ public class BusinessService {
     private final UnitRepository units;
     private final CategoryRepository categories;
     private final SupplierRepository suppliers;
+    private final BillingInvoiceRepository billingInvoices;
 
     /** Makes the caller the Owner and starts a 30-day Pro trial. */
     @Transactional
     public Business create(Long userId, CreateBusinessRequest req) {
-        int max = platformSettings.getInt(PlatformSettings.MAX_BUSINESSES, 5);
-        if (businesses.countCreatedBy(userId) >= max) {
-            throw ApiException.rule("BUSINESS_LIMIT_REACHED", max);
-        }
+        checkLimit(userId);
         Business b = new Business();
         b.setNameEn(req.nameEn());
         b.setNameKm(req.nameKm());
@@ -138,11 +138,59 @@ public class BusinessService {
         s.setBusinessId(b.getId());
         s.setPlanId(plans.findByCode(Plan.PRO).orElseThrow().getId());
         s.setStatus(Subscription.Status.TRIALING);
-        s.setTrialEndsAt(now.plus(Duration.ofDays(platformSettings.getInt(PlatformSettings.TRIAL_DAYS, 30))));
+        s.setTrialEndsAt(now.plus(Duration.ofDays(platformSettings.getInt(PlatformSettings.TRIAL_DAYS, PlatformSettings.DEFAULT_TRIAL_DAYS))));
         s.setCurrentPeriodStart(now);
         s.setCurrentPeriodEnd(s.getTrialEndsAt());
         subscriptions.save(s);
         return b;
+    }
+
+    /**
+     * Archive the business (FR-6.11): it leaves everyone's list and its members can't open it, and nothing is deleted.
+     * Only while nothing will be billed: a paid plan must be cancelled first. The Owner can restore it later.
+     */
+    @Transactional
+    public void archive() {
+        Business b = open();
+        Subscription s = subscriptions.findByBusinessId(b.getId()).orElse(null);
+        boolean billed = s != null && (s.getStatus() == Subscription.Status.PAST_DUE
+                || (s.getStatus() == Subscription.Status.ACTIVE && !s.isCancelAtPeriodEnd())
+                || (s.getStatus() == Subscription.Status.TRIALING && s.isSubscribed()));
+        if (billed || !billingInvoices.findByBusinessIdAndStatus(b.getId(), BillingInvoice.Status.OPEN).isEmpty()) {
+            throw ApiException.rule("BUSINESS_ARCHIVE_BILLING");
+        }
+        activity.record("BUSINESS_ARCHIVED", "BUSINESS", b.getId(), b.getNameEn(), null, null, null);
+        b.setStatus(Business.Status.ARCHIVED);
+    }
+
+    /** Back from the archive, for its Owner, as long as the account is under the businesses limit. */
+    @Transactional
+    public Business restore(Long userId, Long businessId) {
+        Business b = businesses.findById(businessId).filter(x -> x.getStatus() == Business.Status.ARCHIVED)
+                .orElseThrow(() -> ApiException.notFound("Business"));
+        if (!isOwner(userId, businessId)) {
+            throw ApiException.notFound("Business");
+        }
+        checkLimit(userId);
+        b.setStatus(b.isOnboardingCompleted() ? Business.Status.ACTIVE : Business.Status.SETTING_UP);
+        activity.recordAs(businessId, userId, "BUSINESS_RESTORED", "BUSINESS", businessId, b.getNameEn());
+        return b;
+    }
+
+    /** An active Owner of the business (archived ones too). */
+    public boolean isOwner(Long userId, Long businessId) {
+        return members.findByBusinessIdAndUserId(businessId, userId)
+                .filter(m -> m.getStatus() == BusinessMember.Status.ACTIVE)
+                .flatMap(m -> roles.findById(m.getRoleId()))
+                .filter(r -> Role.OWNER.equals(r.getCode()))
+                .isPresent();
+    }
+
+    private void checkLimit(Long userId) {
+        int max = platformSettings.getInt(PlatformSettings.MAX_BUSINESSES, PlatformSettings.DEFAULT_MAX_BUSINESSES);
+        if (businesses.countCreatedBy(userId) >= max) {
+            throw ApiException.rule("BUSINESS_LIMIT_REACHED", max);
+        }
     }
 
     @Transactional(readOnly = true)

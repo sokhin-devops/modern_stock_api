@@ -123,6 +123,15 @@ public class BusinessController {
         return settings.get();
     }
 
+    @Operation(summary = "Archive this business",
+            description = "FR-6.11: hidden from every member's list and closed, nothing deleted; the Owner restores it from "
+                    + "POST /me/businesses/{id}/restore. Refused while a plan would still be billed (cancel it first).")
+    @PostMapping("/archive")
+    @PreAuthorize("hasAuthority('business:manage') and hasAuthority('billing:manage')")
+    public void archiveBusiness() {
+        businesses.archive();
+    }
+
     @PutMapping("/settings")
     @PreAuthorize("hasAuthority('business:manage')")
     @Transactional

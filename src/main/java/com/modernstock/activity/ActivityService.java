@@ -82,14 +82,24 @@ public class ActivityService {
     public void record(String action, String entityType, Long entityId, String label, Long branchId,
                        Map<String, ?> oldValues, Map<String, ?> newValues) {
         BusinessContext.Context c = BusinessContext.require();
+        insert(c.businessId(), c.userId(), action, entityType, entityId, label, branchId, oldValues, newValues);
+    }
+
+    /** An action on a business from outside it (restoring an archived business from the account). */
+    public void recordAs(Long businessId, Long userId, String action, String entityType, Long entityId, String label) {
+        insert(businessId, userId, action, entityType, entityId, label, null, null, null);
+    }
+
+    private void insert(Long businessId, Long userId, String action, String entityType, Long entityId, String label, Long branchId,
+                        Map<String, ?> oldValues, Map<String, ?> newValues) {
         jdbc.update("""
                 insert into activity_logs (business_id, branch_id, user_id, action, entity_type, entity_id, label,
                                            old_values, new_values, ip_address)
                 values (:business, :branch, :user, :action, :type, :entity, :label, cast(:old as jsonb), cast(:new as jsonb), :ip)
                 """, new MapSqlParameterSource()
-                .addValue("business", c.businessId())
+                .addValue("business", businessId)
                 .addValue("branch", branchId)
-                .addValue("user", c.userId())
+                .addValue("user", userId)
                 .addValue("action", action)
                 .addValue("type", entityType)
                 .addValue("entity", entityId)

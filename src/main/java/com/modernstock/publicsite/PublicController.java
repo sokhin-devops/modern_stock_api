@@ -16,12 +16,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.modernstock.admin.PlatformSettings;
 import com.modernstock.billing.Plan;
 import com.modernstock.billing.PlanRepository;
 import com.modernstock.member.InvitationService;
 import com.modernstock.member.InvitationService.InvitationDetails;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -48,7 +50,15 @@ public class PublicController {
                                  @Pattern(regexp = "km|en") String language) {
     }
 
+    public record Announcement(String en, String km, @Schema(allowableValues = {"INFO", "WARN"}) String level) {
+    }
+
+    public record PlatformInfo(@Schema(description = "Days of Pro trial a new business gets") int trialDays,
+                               @Schema(description = "The banner over the web app (FR-8.10); null = none") Announcement announcement) {
+    }
+
     private final PlanRepository plans;
+    private final PlatformSettings platformSettings;
     private final ContactMessageRepository contactMessages;
     private final InvitationService invitations;
     private final ApplicationEventPublisher events;
@@ -58,6 +68,18 @@ public class PublicController {
     @Transactional(readOnly = true)
     public List<PlanResponse> publicPlans() {
         return plans.findByPublicPlanTrueOrderBySortOrder().stream().map(PublicController::toResponse).toList();
+    }
+
+    @Operation(summary = "Platform facts for the apps",
+            description = "The trial length for the sign-up texts, and the announcement the super admin put over the web app (FR-8.10).")
+    @GetMapping("/platform")
+    public PlatformInfo platformInfo() {
+        String en = platformSettings.getString(PlatformSettings.ANNOUNCEMENT_EN, "");
+        String km = platformSettings.getString(PlatformSettings.ANNOUNCEMENT_KM, "");
+        Announcement announcement = en.isBlank() && km.isBlank() ? null
+                : new Announcement(en.isBlank() ? km : en, km.isBlank() ? en : km,
+                platformSettings.getString(PlatformSettings.ANNOUNCEMENT_LEVEL, "INFO"));
+        return new PlatformInfo(platformSettings.getInt(PlatformSettings.TRIAL_DAYS, PlatformSettings.DEFAULT_TRIAL_DAYS), announcement);
     }
 
     @Operation(summary = "Send a message from the website contact form",

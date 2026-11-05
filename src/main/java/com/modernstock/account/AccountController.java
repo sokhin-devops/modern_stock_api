@@ -173,6 +173,31 @@ public class AccountController {
                 .toList();
     }
 
+    @Operation(summary = "My archived businesses", description = "FR-6.11: the ones I own, to restore.")
+    @GetMapping("/businesses/archived")
+    @Transactional(readOnly = true)
+    public List<MyBusinessResponse> myArchivedBusinesses() {
+        Long userId = CurrentUser.id();
+        List<BusinessMember> memberships = members.findByUserIdAndStatus(userId, BusinessMember.Status.ACTIVE);
+        Map<Long, Business> byId = businesses.findAllById(memberships.stream().map(BusinessMember::getBusinessId).toList()).stream()
+                .collect(Collectors.toMap(Business::getId, Function.identity()));
+        return memberships.stream()
+                .filter(m -> byId.get(m.getBusinessId()).getStatus() == Business.Status.ARCHIVED)
+                .filter(m -> businessService.isOwner(userId, m.getBusinessId()))
+                .map(m -> toResponse(byId.get(m.getBusinessId()), m, subscriptions.findByBusinessId(m.getBusinessId()).orElse(null)))
+                .toList();
+    }
+
+    @Operation(summary = "Restore an archived business", description = "Its Owner only; counts towards the businesses limit again.")
+    @PostMapping("/businesses/{id}/restore")
+    @Transactional
+    public MyBusinessResponse restoreBusiness(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
+        Business b = businessService.restore(userId, id);
+        BusinessMember m = members.findByBusinessIdAndUserId(id, userId).orElseThrow();
+        return toResponse(b, m, subscriptions.findByBusinessId(id).orElse(null));
+    }
+
     @Operation(summary = "Create a business",
             description = "You become its Owner and get a 30-day Pro trial. Then open it (X-Business-Id) and call PUT /business/onboarding.")
     @PostMapping("/businesses")
