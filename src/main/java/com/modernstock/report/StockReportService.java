@@ -332,15 +332,16 @@ public class StockReportService {
                 .addValue("since", Dates.today().minusDays(days));
         List<SlowRow> rows = jdbc.query("""
                 select s.*, last.sold as last_sold from (%s) s
-                  left join lateral (
-                    select max(d) as sold from (
-                      select (r.sold_at at time zone 'Asia/Phnom_Penh')::date as d from sale_items si
+                  left join (
+                    select product_id, max(d) as sold from (
+                      select si.product_id, (r.sold_at at time zone 'Asia/Phnom_Penh')::date as d from sale_items si
                         join sales_receipts r on r.id = si.sales_receipt_id
-                       where si.product_id = s.id and r.status = 'POSTED' and r.branch_id in (:branches)
+                       where r.business_id = :business and r.status = 'POSTED' and r.branch_id in (:branches)
                       union all
-                      select (d.delivered_at at time zone 'Asia/Phnom_Penh')::date from sale_items si
+                      select si.product_id, (d.delivered_at at time zone 'Asia/Phnom_Penh')::date from sale_items si
                         join deliveries d on d.id = si.delivery_id
-                       where si.product_id = s.id and d.status = 'POSTED' and d.branch_id in (:branches)) x) last on true
+                       where d.business_id = :business and d.status = 'POSTED' and d.branch_id in (:branches)) x
+                     group by product_id) last on last.product_id = s.id
                  where s.qty > 0 and (last.sold is null or last.sold < :since)
                  order by last.sold nulls first, s.name_en
                 """.formatted(ON_HAND), p, (rs, n) -> {
