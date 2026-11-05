@@ -109,6 +109,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\expense\ExpenseService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\AdjustmentService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\InventoryController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\Reservations.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockAdjustment.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockAdjustmentItem.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\inventory\StockAdjustmentRepository.java
@@ -195,6 +196,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\ReportScope.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\ReportService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\report\StockReportService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashierSwitchService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashMovement.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashMovementRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\sale\CashShift.java

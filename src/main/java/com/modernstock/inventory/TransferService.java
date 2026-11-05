@@ -105,6 +105,7 @@ public class TransferService {
     private final BranchService branches;
     private final BranchScope scope;
     private final StockRequestRepository stockRequests;
+    private final Reservations reservations;
 
     @Transactional
     public TransferResponse create(TransferRequest req) {
@@ -266,6 +267,7 @@ public class TransferService {
      * batch so each keeps its batch, expiry and cost.
      */
     private List<StockTransferItem> takeOut(StockTransfer t, StockService.Ref ref) {
+        requireFree(t);
         List<StockTransferItem> split = new ArrayList<>();
         for (StockTransferItem line : sortedItems(t)) {
             Product p = products.active(line.getProductId());
@@ -289,6 +291,30 @@ public class TransferService {
         t.getItems().clear();
         t.getItems().addAll(split);
         return split;
+    }
+
+    /**
+     * Stock reserved for sales orders stays for them (FR-3.21): a transfer may take what is on hand in the warehouse
+     * less what open orders still have to deliver from it.
+     */
+    private void requireFree(StockTransfer t) {
+        Map<Long, BigDecimal> wanted = new java.util.LinkedHashMap<>();
+        t.getItems().forEach(i -> wanted.merge(i.getProductId(), i.getBaseQty(), BigDecimal::add));
+        List<Long> from = List.of(t.getFromWarehouseId());
+        Map<Long, BigDecimal> reserved = reservations.reserved(wanted.keySet(), from, null);
+        if (reserved.isEmpty()) {
+            return;
+        }
+        Map<Long, BigDecimal> onHand = products.onHand(reserved.keySet(), from);
+        for (Map.Entry<Long, BigDecimal> w : wanted.entrySet()) {
+            BigDecimal held = reserved.getOrDefault(w.getKey(), BigDecimal.ZERO);
+            BigDecimal free = onHand.getOrDefault(w.getKey(), BigDecimal.ZERO).subtract(held).max(BigDecimal.ZERO);
+            if (held.signum() > 0 && w.getValue().compareTo(free) > 0) {
+                Product p = products.active(w.getKey());
+                throw ApiException.rule("STOCK_RESERVED", p.getNameEn(), held.stripTrailingZeros().toPlainString(),
+                        free.stripTrailingZeros().toPlainString());
+            }
+        }
     }
 
     private void apply(StockTransfer t, TransferRequest req) {

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.modernstock.auth.AuthService.EmailRequest;
 import com.modernstock.auth.AuthService.LoginRequest;
 import com.modernstock.auth.AuthService.MessageResponse;
+import com.modernstock.auth.AuthService.PinSwitchRequest;
 import com.modernstock.auth.AuthService.ResetPasswordRequest;
 import com.modernstock.auth.AuthService.Session;
 import com.modernstock.auth.AuthService.SignUpRequest;
@@ -23,8 +24,8 @@ import com.modernstock.auth.AuthService.TokenRequest;
 import com.modernstock.auth.AuthService.TokenResponse;
 import com.modernstock.common.CurrentUser;
 import com.modernstock.config.AppProperties;
-import com.modernstock.member.InvitationService;
 import com.modernstock.member.InvitationService.SignUpWithInvitationRequest;
+import com.modernstock.member.InvitationService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -84,6 +85,18 @@ public class AuthController {
             @Parameter(hidden = true) @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         auth.logout(refreshToken);
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString()).build();
+    }
+
+    @Operation(summary = "Switch cashier with a PIN",
+            description = "FR-6.19: on a device where someone is signed in, another member of the business who sells takes over "
+                    + "with their 4-6 digit PIN. This device's session ends and the new one starts (new refresh cookie). "
+                    + "400 PIN_WRONG, 422 PIN_LOCKED after 5 wrong PINs (15 minutes).")
+    @PostMapping("/pin-switch")
+    public ResponseEntity<TokenResponse> pinSwitch(@Valid @RequestBody PinSwitchRequest req,
+            @Parameter(hidden = true) @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+        Session session = auth.pinSwitch(CurrentUser.id(), req);
+        auth.logout(refreshToken);
+        return withCookie(session, HttpStatus.OK);
     }
 
     @Operation(summary = "Log out from all devices")

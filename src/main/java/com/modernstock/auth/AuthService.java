@@ -9,17 +9,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.modernstock.activity.ActivityService;
+import com.modernstock.business.BusinessMember;
+import com.modernstock.business.BusinessMemberRepository;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.Messages;
 import com.modernstock.common.Phones;
 import com.modernstock.common.Tokens;
 import com.modernstock.config.AppProperties;
+import com.modernstock.member.RoleRepository;
 import com.modernstock.notification.MailService;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -58,12 +63,22 @@ public class AuthService {
     }
 
     public record UserResponse(Long id, String fullName, String username, String email, String phone, String locale,
-                               String uiMode, String uiDensity, boolean emailVerified, boolean superAdmin) {
+                               String uiMode, String uiDensity, boolean emailVerified, boolean superAdmin,
+                               @Schema(description = "A POS PIN is set (FR-6.19)") boolean hasPin) {
         public static UserResponse from(User u) {
             return new UserResponse(u.getId(), u.getFullName(), u.getUsername(), u.getEmail(), u.getPhone(),
-                    u.getLocale(), u.getUiMode(), u.getUiDensity(), u.getEmailVerifiedAt() != null, u.isSuperAdmin());
+                    u.getLocale(), u.getUiMode(), u.getUiDensity(), u.getEmailVerifiedAt() != null, u.isSuperAdmin(),
+                    u.getPinHash() != null);
         }
     }
+
+    public record PinSwitchRequest(@NotNull Long businessId, @NotNull Long userId,
+                                   @Schema(example = "1234") @NotBlank @jakarta.validation.constraints.Pattern(regexp = "\\d{4,6}") String pin) {
+    }
+
+    /** Wrong PINs in a row before the PIN locks, and for how long. */
+    public static final int PIN_TRIES = 5;
+    public static final Duration PIN_LOCK = Duration.ofMinutes(15);
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record TokenResponse(String accessToken, String tokenType, long expiresIn, UserResponse user,
@@ -83,6 +98,9 @@ public class AuthService {
     private final MailService mail;
     private final Messages messages;
     private final AppProperties props;
+    private final BusinessMemberRepository members;
+    private final RoleRepository roles;
+    private final ActivityService activity;
 
     @Transactional
     public MessageResponse signUp(SignUpRequest req) {
@@ -138,6 +156,46 @@ public class AuthService {
     }
 
     /** Rotates the refresh token: the old one stops working. */
+    /**
+     * Quick cashier switch on a shared POS device (FR-6.19): someone is signed in here, and another member of the same
+     * business who sells takes over with their PIN. Five wrong PINs lock that PIN for 15 minutes.
+     */
+    @Transactional(noRollbackFor = ApiException.class)
+    public Session pinSwitch(Long callerId, PinSwitchRequest req) {
+        BusinessMember caller = members.findByBusinessIdAndUserId(req.businessId(), callerId)
+                .filter(m -> m.getStatus() == BusinessMember.Status.ACTIVE)
+                .orElseThrow(() -> ApiException.forbidden("PERMISSION_DENIED"));
+        BusinessMember target = members.findByBusinessIdAndUserId(req.businessId(), req.userId())
+                .filter(m -> m.getStatus() == BusinessMember.Status.ACTIVE && !m.isDisabledByPlan())
+                .orElseThrow(() -> ApiException.notFound("Member"));
+        User u = users.findById(target.getUserId()).filter(x -> x.getStatus() == User.Status.ACTIVE && x.getPinHash() != null)
+                .orElseThrow(() -> ApiException.notFound("Member"));
+        boolean sells = roles.findById(target.getRoleId())
+                .map(r -> r.getPermissions().stream().anyMatch(p -> "sale:create".equals(p.getCode()))).orElse(false);
+        if (!sells) {
+            throw ApiException.forbidden("PERMISSION_DENIED");
+        }
+        Instant now = Instant.now();
+        if (u.getPinLockedUntil() != null && u.getPinLockedUntil().isAfter(now)) {
+            throw ApiException.rule("PIN_LOCKED", java.time.temporal.ChronoUnit.MINUTES.between(now, u.getPinLockedUntil()) + 1);
+        }
+        if (!passwordEncoder.matches(req.pin(), u.getPinHash())) {
+            u.setPinFailed(u.getPinFailed() + 1);
+            if (u.getPinFailed() >= PIN_TRIES) {
+                u.setPinFailed(0);
+                u.setPinLockedUntil(now.plus(PIN_LOCK));
+                throw ApiException.rule("PIN_LOCKED", PIN_LOCK.toMinutes());
+            }
+            throw ApiException.badRequest("PIN_WRONG", PIN_TRIES - u.getPinFailed());
+        }
+        u.setPinFailed(0);
+        u.setPinLockedUntil(null);
+        u.setLastLoginAt(now);
+        activity.recordAs(req.businessId(), u.getId(), "CASHIER_SWITCHED", "MEMBER", target.getId(),
+                users.findById(caller.getUserId()).map(User::getFullName).orElse(null) + " → " + u.getFullName());
+        return issueSession(u, req.businessId());
+    }
+
     @Transactional
     public Session refresh(String rawRefreshToken) {
         RefreshToken current = rawRefreshToken == null ? null

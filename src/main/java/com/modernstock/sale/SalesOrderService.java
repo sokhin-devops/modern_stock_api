@@ -87,7 +87,15 @@ public class SalesOrderService {
                                      Long warehouseId, String warehouseName, Long quotationId, String quotationNumber,
                                      LocalDate orderDate, LocalDate deliveryDate, BigDecimal subtotal, BigDecimal orderDiscount,
                                      BigDecimal discount, BigDecimal vat, BigDecimal total, SalesOrder.Status status, String note,
-                                     List<OrderLineResponse> lines, List<OrderDelivery> deliveries) {
+                                     List<OrderLineResponse> lines, List<OrderDelivery> deliveries,
+                                     @Schema(description = "Open order: lines that free stock (on hand less other orders' reservations) "
+                                             + "does not cover yet (FR-3.21); the order can still be delivered later")
+                                     List<Shortage> shortages) {
+    }
+
+    public record Shortage(Long productId, String productName,
+                           @Schema(description = "Base units still to deliver") BigDecimal needed,
+                           @Schema(description = "Base units free in the order's warehouse") BigDecimal free, String unitSymbol) {
     }
 
     public record DeliverLineRequest(@NotNull Long salesOrderItemId,
@@ -119,6 +127,7 @@ public class SalesOrderService {
     private final DocumentNumberService numbers;
     private final BranchService branches;
     private final BranchScope scope;
+    private final com.modernstock.inventory.Reservations reservations;
 
     @Transactional
     public SalesOrderResponse create(SalesOrderRequest req) {
@@ -357,10 +366,38 @@ public class SalesOrderService {
                 }).toList();
         String quotationNumber = o.getQuotationId() == null ? null
                 : quotations.findById(o.getQuotationId()).map(Quotation::getNumber).orElse(null);
+        List<Shortage> shortages = shortages(o, byId, symbols);
         return new SalesOrderResponse(o.getId(), o.getNumber(), o.getCustomerId(),
                 customers.findById(o.getCustomerId()).map(Customer::getName).orElse(null), o.getBranchId(), o.getWarehouseId(),
                 branches.warehouseLabels().get(o.getWarehouseId()), o.getQuotationId(), quotationNumber, o.getOrderDate(),
                 o.getDeliveryDate(), o.getSubtotal(), o.getOrderDiscount(), o.getDiscount(), o.getVat(), o.getTotal(),
-                o.getStatus(), o.getNote(), lines, done);
+                o.getStatus(), o.getNote(), lines, done, shortages);
+    }
+
+    /** Lines of an open order that the free stock of its warehouse does not cover (other orders keep theirs). */
+    private List<Shortage> shortages(SalesOrder o, Map<Long, Product> byId, Map<Long, String> symbols) {
+        if (o.getStatus() != SalesOrder.Status.CONFIRMED && o.getStatus() != SalesOrder.Status.PARTIALLY_DELIVERED) {
+            return List.of();
+        }
+        Map<Long, BigDecimal> needed = new java.util.LinkedHashMap<>();
+        for (SalesOrderItem i : o.getItems()) {
+            BigDecimal left = i.getQtyOrdered().subtract(i.getQtyDelivered());
+            if (left.signum() > 0) {
+                needed.merge(i.getProductId(), products.toBaseQty(byId.get(i.getProductId()), i.getUnitId(), left), BigDecimal::add);
+            }
+        }
+        if (needed.isEmpty()) {
+            return List.of();
+        }
+        List<Long> warehouse = List.of(o.getWarehouseId());
+        Map<Long, BigDecimal> onHand = products.onHand(needed.keySet(), warehouse);
+        Map<Long, BigDecimal> others = reservations.reserved(needed.keySet(), warehouse, o.getId());
+        return needed.entrySet().stream().map(e -> {
+            BigDecimal free = onHand.getOrDefault(e.getKey(), BigDecimal.ZERO).subtract(others.getOrDefault(e.getKey(), BigDecimal.ZERO))
+                    .max(BigDecimal.ZERO);
+            Product p = byId.get(e.getKey());
+            return e.getValue().compareTo(free) > 0
+                    ? new Shortage(e.getKey(), p.getNameEn(), e.getValue(), free, symbols.get(p.getBaseUnitId())) : null;
+        }).filter(java.util.Objects::nonNull).toList();
     }
 }

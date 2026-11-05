@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.modernstock.auth.AuthService.MessageResponse;
 import com.modernstock.auth.AuthService.UserResponse;
+import com.modernstock.auth.RefreshTokenRepository;
 import com.modernstock.auth.User;
 import com.modernstock.auth.UserRepository;
 import com.modernstock.billing.Subscription;
@@ -28,14 +30,14 @@ import com.modernstock.business.Business;
 import com.modernstock.business.BusinessMember;
 import com.modernstock.business.BusinessMemberRepository;
 import com.modernstock.business.BusinessRepository;
-import com.modernstock.business.BusinessService;
 import com.modernstock.business.BusinessService.CreateBusinessRequest;
+import com.modernstock.business.BusinessService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
 import com.modernstock.common.Messages;
 import com.modernstock.common.Phones;
-import com.modernstock.member.InvitationService;
 import com.modernstock.member.InvitationService.MyInvitation;
+import com.modernstock.member.InvitationService;
 import com.modernstock.member.Permission;
 import com.modernstock.member.Role;
 import com.modernstock.member.RoleRepository;
@@ -72,6 +74,13 @@ public class AccountController {
                                      @Pattern(regexp = "comfortable|compact") String uiDensity) {
     }
 
+    public record DeleteMeRequest(@NotBlank String password) {
+    }
+
+    public record PinRequest(@NotBlank String currentPassword,
+                             @Schema(description = "4 to 6 digits", example = "1234") @NotBlank @Pattern(regexp = "\\d{4,6}") String pin) {
+    }
+
     public record ChangePasswordRequest(@NotBlank String currentPassword,
                                         @NotBlank @Size(min = 8, max = 72) String newPassword) {
     }
@@ -95,6 +104,7 @@ public class AccountController {
     private final BusinessService businessService;
     private final InvitationService invitations;
     private final Messages messages;
+    private final RefreshTokenRepository refreshTokens;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -154,6 +164,63 @@ public class AccountController {
         }
         u.setPasswordHash(passwordEncoder.encode(req.newPassword()));
         return new MessageResponse(messages.get("PASSWORD_CHANGED"), null);
+    }
+
+    @Operation(summary = "Set or change my POS PIN", description = "FR-6.19: 4 to 6 digits, to take over a shared POS device.")
+    @PutMapping("/pin")
+    @Transactional
+    public UserResponse setPin(@Valid @RequestBody PinRequest req) {
+        User u = currentUser();
+        if (!passwordEncoder.matches(req.currentPassword(), u.getPasswordHash())) {
+            throw ApiException.badRequest("WRONG_PASSWORD");
+        }
+        u.setPinHash(passwordEncoder.encode(req.pin()));
+        u.setPinFailed(0);
+        u.setPinLockedUntil(null);
+        return UserResponse.from(u);
+    }
+
+    @DeleteMapping("/pin")
+    @Transactional
+    public UserResponse removePin() {
+        User u = currentUser();
+        u.setPinHash(null);
+        return UserResponse.from(u);
+    }
+
+    @Operation(summary = "Delete my account",
+            description = "FR-6.7: with my password. Refused while I am the only Owner of a business (LAST_OWNER_ACCOUNT). The account "
+                    + "becomes \"Deleted user\": name, username, email, phone and PIN are removed, every device is signed out, and I "
+                    + "leave every business. Documents keep who made them.")
+    @PostMapping("/delete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    public void deleteMe(@Valid @RequestBody DeleteMeRequest req) {
+        User u = currentUser();
+        if (!passwordEncoder.matches(req.password(), u.getPasswordHash())) {
+            throw ApiException.badRequest("WRONG_PASSWORD");
+        }
+        if (u.isSuperAdmin()) {
+            throw ApiException.rule("SUPER_ADMIN_DELETE");
+        }
+        List<BusinessMember> memberships = members.findByUserIdAndStatus(u.getId(), BusinessMember.Status.ACTIVE);
+        Long ownerRole = roles.findBuiltIn(Role.OWNER).orElseThrow().getId();
+        for (BusinessMember m : memberships) {
+            if (m.getRoleId().equals(ownerRole)
+                    && members.countByBusinessIdAndRoleIdAndStatusAndIdNot(m.getBusinessId(), ownerRole, BusinessMember.Status.ACTIVE, m.getId()) == 0) {
+                throw ApiException.rule("LAST_OWNER_ACCOUNT", businesses.findById(m.getBusinessId()).map(Business::getNameEn).orElse(""));
+            }
+        }
+        memberships.forEach(m -> m.setStatus(BusinessMember.Status.REMOVED));
+        refreshTokens.revokeAll(u.getId(), Instant.now());
+        u.setFullName("Deleted user #" + u.getId());
+        u.setUsername(null);
+        u.setEmail(null);
+        u.setPhone(null);
+        u.setPinHash(null);
+        u.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+        u.setStatus(User.Status.DISABLED);
+        u.setDeletedAt(Instant.now());
     }
 
     @Operation(summary = "Businesses I belong to",

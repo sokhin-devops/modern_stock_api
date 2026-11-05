@@ -56,7 +56,9 @@ public class StockController {
     public record StockRow(Long productId, String sku, String nameEn, String nameKm, String unitSymbol,
                            BigDecimal qtyOnHand, BigDecimal reorderLevel,
                            @Schema(description = "qty × average cost; only for members who manage products") BigDecimal value,
-                           boolean low) {
+                           boolean low,
+                           @Schema(description = "Of qtyOnHand, reserved for sales orders (FR-3.21); free = qtyOnHand − reserved")
+                           BigDecimal reserved) {
     }
 
     public record BranchQty(Long branchId, BigDecimal qtyOnHand, BigDecimal reorderLevel, boolean low) {
@@ -103,6 +105,7 @@ public class StockController {
     private final BranchRepository branchRepository;
     private final WarehouseRepository warehouses;
     private final ExpiryWindows expiryWindows;
+    private final Reservations reservations;
 
     @Operation(summary = "Stock on hand per product", description = "Base units, summed over the branches you see. q matches name, SKU or barcode.")
     @GetMapping("/levels")
@@ -116,7 +119,9 @@ public class StockController {
                 scope.warehouseIds());
         Map<Long, String> symbols = productService.unitSymbols();
         Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(page.getContent());
-        return PageResponse.of(page, p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols));
+        Map<Long, BigDecimal> reserved = reservations.reserved(onHand.keySet(), scope.warehouseIds(), null);
+        return PageResponse.of(page, p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols,
+                reserved.getOrDefault(p.getId(), BigDecimal.ZERO)));
     }
 
     @Operation(summary = "Stock of all branches side by side", description = "On hand and the reorder level in each branch you "
@@ -180,7 +185,7 @@ public class StockController {
                 scope.warehouseIds());
         Map<Long, String> symbols = productService.unitSymbols();
         return watched.stream()
-                .map(p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols))
+                .map(p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols, BigDecimal.ZERO))
                 .filter(StockRow::low)
                 .sorted(Comparator.comparing(StockRow::qtyOnHand))
                 .toList();
@@ -268,11 +273,11 @@ public class StockController {
         return new StockSummary(value, inTransit, low, soon.size() - expired, soonDays, expired);
     }
 
-    private StockRow row(Product p, BigDecimal qty, BigDecimal reorderAt, Map<Long, String> symbols) {
+    private StockRow row(Product p, BigDecimal qty, BigDecimal reorderAt, Map<Long, String> symbols, BigDecimal reserved) {
         boolean showCost = BusinessContext.has("product:manage");
         return new StockRow(p.getId(), p.getSku(), p.getNameEn(), p.getNameKm(), symbols.get(p.getBaseUnitId()), qty,
                 reorderAt, showCost ? qty.multiply(p.getAvgCost()).setScale(2, RoundingMode.HALF_UP) : null,
-                reorderAt.signum() > 0 && qty.compareTo(reorderAt) <= 0);
+                reorderAt.signum() > 0 && qty.compareTo(reorderAt) <= 0, reserved);
     }
 
     private static BatchRow batchRow(StockBatch b, Product p, Map<Long, String> labels, LocalDate today) {

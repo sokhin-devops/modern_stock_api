@@ -76,7 +76,8 @@ public class ProductService {
                                   @Schema(description = "Base units on hand in the branches you are looking at") BigDecimal qtyOnHand,
                                   @Schema(description = "Path of the photo under the API (/public/files/...), or null") String photoUrl,
                                   @Schema(description = "Reorder level of the branches you are looking at: each branch's own level, "
-                                          + "or the product's, added up (FR-4.7)") BigDecimal reorderAt) {
+                                          + "or the product's, added up (FR-4.7)") BigDecimal reorderAt,
+                                  @Schema(description = "Of qtyOnHand, base units reserved for sales orders (FR-3.21)") BigDecimal qtyReserved) {
     }
 
     public record BarcodeLookupResponse(ProductResponse product, Long unitId, BigDecimal factor,
@@ -112,6 +113,7 @@ public class ProductService {
     private final EntitlementService entitlements;
     private final FileStorage files;
     private final ActivityService activity;
+    private final com.modernstock.inventory.Reservations reservations;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> search(String q, Long categoryId, Boolean active, Pageable pageable) {
@@ -119,7 +121,9 @@ public class ProductService {
         Map<Long, BigDecimal> onHand = onHand(page.getContent().stream().map(Product::getId).toList(), scope.warehouseIds());
         Map<Long, String> symbols = unitSymbols();
         Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(page.getContent());
-        return PageResponse.of(page, p -> toResponse(p, symbols, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId())));
+        Map<Long, BigDecimal> reserved = reservations.reserved(onHand.keySet(), scope.warehouseIds(), null);
+        return PageResponse.of(page, p -> toResponse(p, symbols, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()),
+                reserved.getOrDefault(p.getId(), BigDecimal.ZERO)));
     }
 
     /** A new photo replaces the old one (FR-1.1). */
@@ -230,7 +234,9 @@ public class ProductService {
                 .findFirst().orElse(p.getBaseUnitId());
         Long salesWarehouse = branchService.salesWarehouse(branch).getId();
         BigDecimal qty = onHand(List.of(p.getId()), List.of(salesWarehouse)).getOrDefault(p.getId(), BigDecimal.ZERO);
-        return new BarcodeLookupResponse(toResponse(p, unitSymbols(), qty), unitId, factor(p, unitId),
+        BigDecimal reserved = reservations.reserved(List.of(p.getId()), List.of(salesWarehouse), null).getOrDefault(p.getId(), BigDecimal.ZERO);
+        return new BarcodeLookupResponse(toResponse(p, unitSymbols(), qty, reorderLevels.inScope(List.of(p)).get(p.getId()), reserved),
+                unitId, factor(p, unitId),
                 priceFor(p, unitId, branch), qty);
     }
 
@@ -413,10 +419,13 @@ public class ProductService {
     }
 
     private ProductResponse toResponse(Product p, Map<Long, String> symbols, BigDecimal qtyOnHand) {
-        return toResponse(p, symbols, qtyOnHand, reorderLevels.inScope(List.of(p)).get(p.getId()));
+        BigDecimal reserved = p.getId() == null ? BigDecimal.ZERO
+                : reservations.reserved(List.of(p.getId()), scope.warehouseIds(), null).getOrDefault(p.getId(), BigDecimal.ZERO);
+        return toResponse(p, symbols, qtyOnHand, reorderLevels.inScope(List.of(p)).get(p.getId()), reserved);
     }
 
-    private ProductResponse toResponse(Product p, Map<Long, String> symbols, BigDecimal qtyOnHand, BigDecimal reorderAt) {
+    private ProductResponse toResponse(Product p, Map<Long, String> symbols, BigDecimal qtyOnHand, BigDecimal reorderAt,
+                                       BigDecimal reserved) {
         List<ProductUnitResponse> unitList = p.getUnits().stream()
                 .map(u -> new ProductUnitResponse(u.getUnitId(), symbols.get(u.getUnitId()), u.getFactor(),
                         u.getBarcode(), u.getSellPrice()))
@@ -425,7 +434,7 @@ public class ProductService {
                 p.getCategoryId(), p.getBaseUnitId(), symbols.get(p.getBaseUnitId()), p.getSellPrice(),
                 BusinessContext.has("product:manage") ? p.getAvgCost() : null, p.getReorderLevel(),
                 p.getLeadTimeDays(), p.isTrackExpiry(), p.isVatExempt(), p.isActive(), unitList, qtyOnHand,
-                FileStorage.url(p.getImagePath()), reorderAt);
+                FileStorage.url(p.getImagePath()), reorderAt, reserved);
     }
 
     /** What the activity log compares when a product changes: names, codes and prices (FR-6.22). */

@@ -43,4 +43,10 @@ public class User extends BaseEntity {
     @Column(name = "is_super_admin", nullable = false)
     private boolean superAdmin;
     private Instant lastLoginAt;
+    /** FR-6.7: when the person deleted the account (name, email and phone are gone). */
+    private Instant deletedAt;
+    /** FR-6.19: the POS PIN, hashed; null = no PIN. */
+    private String pinHash;
+    private int pinFailed;
+    private Instant pinLockedUntil;
 }

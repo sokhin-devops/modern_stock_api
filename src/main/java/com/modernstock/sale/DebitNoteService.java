@@ -105,6 +105,9 @@ public class DebitNoteService {
         if (dn.getType() != Invoice.Type.DEBIT_NOTE) {
             throw ApiException.notFound("Debit note");
         }
+        if (dn.getStatus() == Invoice.Status.VOID) {
+            throw ApiException.conflict("WRONG_STATUS", dn.getStatus());
+        }
         if (dn.getStatus() != Invoice.Status.UNPAID || dn.getPaidAmount().signum() != 0) {
             throw ApiException.rule("DEBIT_NOTE_PAID");
         }

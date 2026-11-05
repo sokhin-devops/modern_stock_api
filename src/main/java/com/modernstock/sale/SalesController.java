@@ -1,5 +1,7 @@
 package com.modernstock.sale;
 
+import java.util.List;
+
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -13,12 +15,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.modernstock.common.PageResponse;
-import com.modernstock.sale.DebitNoteService.DebitNoteRequest;
 import com.modernstock.money.PaymentResponse;
 import com.modernstock.sale.CashShiftService.CashMovementRequest;
 import com.modernstock.sale.CashShiftService.CashShiftResponse;
 import com.modernstock.sale.CashShiftService.CloseShiftRequest;
 import com.modernstock.sale.CashShiftService.OpenShiftRequest;
+import com.modernstock.sale.DebitNoteService.DebitNoteRequest;
 import com.modernstock.sale.PosService.CheckoutRequest;
 import com.modernstock.sale.PosService.CheckoutResponse;
 import com.modernstock.sale.PosService.DeliveryResponse;
@@ -40,6 +42,7 @@ public class SalesController {
     private final PosService pos;
     private final CashShiftService cashShifts;
     private final DebitNoteService debitNotes;
+    private final CashierSwitchService cashierSwitch;
 
     // ------------------------------------------------------------------ POS
 
@@ -112,6 +115,15 @@ public class SalesController {
     @PreAuthorize("hasAnyAuthority('delivery:manage', 'sale:create')")
     public DeliveryResponse getDelivery(@PathVariable Long id) {
         return pos.delivery(id);
+    }
+
+    @Tag(name = "POS")
+    @Operation(summary = "Who can take over this POS with a PIN",
+            description = "FR-6.19: members who sell in the selected branch and have set a PIN; then POST /auth/pin-switch.")
+    @GetMapping("/pos/cashiers")
+    @PreAuthorize("hasAuthority('sale:create')")
+    public List<CashierSwitchService.Cashier> pinCashiers() {
+        return cashierSwitch.cashiers();
     }
 
     @Tag(name = "POS")
