@@ -9,6 +9,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.modernstock.common.DocumentNumberService;
+import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.FileStorage;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -40,6 +42,9 @@ public class SettingsService {
             @Schema(description = "Near-expiry windows in days (FR-7.10): three, each longer than the one before, up to 365; "
                     + "the first one warns. Leave out to keep them.", example = "[30, 60, 90]")
             List<Integer> expiryDays,
+            @Schema(description = "Document number prefix per type (FR-7.11), e.g. {\"INV\": \"HD\"}: 1 to 6 capital letters or "
+                    + "digits, each different. The type's code by default. Leave out, or leave a type out, to keep it.")
+            Map<String, String> numberPrefixes,
             @Schema(description = "Read only: the shop's KHQR image (/public/files/...), shown at the POS", accessMode = Schema.AccessMode.READ_ONLY)
             String khqrImageUrl) {
     }
@@ -83,6 +88,7 @@ public class SettingsService {
                 Boolean.parseBoolean(values.get("payment_khqr")),
                 Boolean.parseBoolean(values.get("payment_bank")),
                 ExpiryWindows.parse(values.get(ExpiryWindows.KEY)),
+                prefixes(values),
                 values.get(KHQR_IMAGE).isBlank() ? null : FileStorage.url(values.get(KHQR_IMAGE)));
     }
 
@@ -94,6 +100,7 @@ public class SettingsService {
         if (s.receiptPaper() != 58 && s.receiptPaper() != 80) {
             throw com.modernstock.common.ApiException.badRequest("RECEIPT_PAPER_INVALID");
         }
+        Map<String, String> prefixes = s.numberPrefixes() == null ? null : checkPrefixes(s.numberPrefixes());
         if (s.expiryDays() != null && !ExpiryWindows.valid(s.expiryDays())) {
             throw com.modernstock.common.ApiException.badRequest("EXPIRY_WINDOWS_INVALID", ExpiryWindows.MAX_DAYS);
         }
@@ -111,7 +118,47 @@ public class SettingsService {
         if (s.expiryDays() != null) {
             put(ExpiryWindows.KEY, ExpiryWindows.format(s.expiryDays()));
         }
+        if (prefixes != null) {
+            prefixes.forEach((type, prefix) -> put(DocumentNumberService.PREFIX_KEY + type, prefix));
+        }
         return get();
+    }
+
+    /** Every document type with its prefix, in the order of the types. */
+    private static Map<String, String> prefixes(Map<String, String> values) {
+        Map<String, String> map = new LinkedHashMap<>();
+        for (DocType t : DocType.values()) {
+            String v = values.get(DocumentNumberService.PREFIX_KEY + t.name());
+            map.put(t.name(), v == null || !DocumentNumberService.PREFIX.matcher(v).matches() ? t.name() : v);
+        }
+        return map;
+    }
+
+    /** The prefixes asked for, in capitals, with the ones left out as they are; refused when wrong or used twice. */
+    private Map<String, String> checkPrefixes(Map<String, String> asked) {
+        Map<String, String> all = new HashMap<>(prefixes(currentValues()));
+        Map<String, String> changed = new LinkedHashMap<>();
+        asked.forEach((type, prefix) -> {
+            if (!all.containsKey(type)) {
+                throw com.modernstock.common.ApiException.badRequest("NUMBER_PREFIX_INVALID", type);
+            }
+            String p = prefix == null || prefix.isBlank() ? type : prefix.strip().toUpperCase(java.util.Locale.ROOT);
+            if (!DocumentNumberService.PREFIX.matcher(p).matches()) {
+                throw com.modernstock.common.ApiException.badRequest("NUMBER_PREFIX_INVALID", prefix);
+            }
+            all.put(type, p);
+            changed.put(type, p);
+        });
+        if (all.values().stream().distinct().count() < all.size()) {
+            throw com.modernstock.common.ApiException.badRequest("NUMBER_PREFIX_TWICE");
+        }
+        return changed;
+    }
+
+    private Map<String, String> currentValues() {
+        Map<String, String> values = new HashMap<>();
+        repository.findAll().forEach(s -> values.put(s.getKey(), s.getValue()));
+        return values;
     }
 
     /** One stored setting, for settings that are not part of BusinessSettings (Telegram). */

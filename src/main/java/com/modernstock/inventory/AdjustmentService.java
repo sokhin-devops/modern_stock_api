@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import com.modernstock.common.CurrentUser;
 import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
+import com.modernstock.notification.TelegramAlerts;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -86,6 +88,7 @@ public class AdjustmentService {
     private final DocumentNumberService numbers;
     private final BranchService branches;
     private final BranchScope scope;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public AdjustmentResponse create(AdjustmentRequest req) {
@@ -135,6 +138,9 @@ public class AdjustmentService {
         if (canPost) {
             post(adj);
             logPosted("ADJUSTMENT_POSTED", adj);
+        } else {
+            events.publishEvent(new TelegramAlerts.ApprovalWaiting(BusinessContext.businessId(), TelegramAlerts.Waiting.ADJUSTMENT,
+                    adj.getNumber(), adj.getBranchId(), CurrentUser.id(), null));
         }
         return toResponse(adj);
     }

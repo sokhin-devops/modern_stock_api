@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +30,11 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductRepository;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
+import com.modernstock.common.CurrentUser;
 import com.modernstock.common.DocumentNumberService.DocType;
 import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
+import com.modernstock.notification.TelegramAlerts;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -106,6 +109,7 @@ public class StockCountService {
     private final DocumentNumberService numbers;
     private final BranchScope scope;
     private final ActivityService activity;
+    private final ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
     public PageResponse<CountResponse> list(StockCount.Status status, Pageable pageable) {
@@ -213,6 +217,8 @@ public class StockCountService {
         readyToPost(c);
         c.setStatus(StockCount.Status.SUBMITTED);
         c.setSubmittedAt(Instant.now());
+        events.publishEvent(new TelegramAlerts.ApprovalWaiting(BusinessContext.businessId(), TelegramAlerts.Waiting.STOCK_COUNT,
+                c.getNumber(), c.getBranchId(), CurrentUser.id(), null));
         return toResponse(c, true);
     }
 

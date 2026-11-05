@@ -41,6 +41,9 @@ public class TelegramController {
             @Schema(description = "Immediate: a product sold out") boolean outOfStockAlerts,
             @Schema(description = "Immediate: a cash shift closed short") boolean shiftShortAlerts,
             @Schema(description = "Immediate: a sale voided") boolean voidAlerts,
+            @Schema(description = "Immediate: an adjustment, count or return waits for approval (FR-5.8)") boolean approvalAlerts,
+            @Schema(description = "Daily summary: overdue customer invoices, and supplier bills overdue or due within 7 days (FR-5.8)")
+            boolean debtLines,
             @Schema(description = "Read only: the server has a bot", accessMode = Schema.AccessMode.READ_ONLY) boolean botConfigured,
             @Schema(description = "Read only: the plan includes Telegram alerts", accessMode = Schema.AccessMode.READ_ONLY) boolean planIncludes) {
     }
@@ -68,6 +71,8 @@ public class TelegramController {
                 Boolean.parseBoolean(settings.value(TelegramAlerts.OUT_OF_STOCK, "true")),
                 Boolean.parseBoolean(settings.value(TelegramAlerts.SHIFT_SHORT, "true")),
                 Boolean.parseBoolean(settings.value(TelegramAlerts.SALE_VOID, "true")),
+                Boolean.parseBoolean(settings.value(TelegramAlerts.APPROVALS, "true")),
+                Boolean.parseBoolean(settings.value(DailySummaryService.DEBTS, "true")),
                 telegram.configured(), entitlements.hasFeature(EntitlementService.TELEGRAM_ALERTS));
     }
 
@@ -81,6 +86,8 @@ public class TelegramController {
         settings.put(TelegramAlerts.OUT_OF_STOCK, String.valueOf(req.outOfStockAlerts()));
         settings.put(TelegramAlerts.SHIFT_SHORT, String.valueOf(req.shiftShortAlerts()));
         settings.put(TelegramAlerts.SALE_VOID, String.valueOf(req.voidAlerts()));
+        settings.put(TelegramAlerts.APPROVALS, String.valueOf(req.approvalAlerts()));
+        settings.put(DailySummaryService.DEBTS, String.valueOf(req.debtLines()));
         return getTelegramSettings();
     }
 

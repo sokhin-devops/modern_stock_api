@@ -147,6 +147,10 @@ public class BusinessController {
         Map<String, Object> facts = json.convertValue(s, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
         });
         facts.remove("khqrImageUrl");
+        // One line per prefix in the activity log: "Number prefix (INV): INV → HD"
+        if (facts.remove("numberPrefixes") instanceof Map<?, ?> prefixes) {
+            prefixes.forEach((type, prefix) -> facts.put("numberPrefixes." + type, prefix));
+        }
         return facts;
     }
 }

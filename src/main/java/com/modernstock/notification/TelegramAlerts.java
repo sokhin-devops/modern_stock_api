@@ -18,7 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Immediate Telegram alerts (FR-5.5): a product sold out, a cash shift closed short, a sale voided. Each is published
+ * Immediate Telegram alerts (FR-5.5, FR-5.8): a product sold out, a cash shift closed short, a sale voided, something
+ * waiting for approval (an adjustment, a count, a customer or supplier return). Each is published
  * as an event by the work that causes it and sent once that work is saved, in the background, so a sale never waits for
  * Telegram. Sent to the business's connected chat when its plan includes Telegram alerts and the Owner left the alert on
  * (Settings › Telegram). There is no business context here: every query names the business itself.
@@ -31,6 +32,7 @@ public class TelegramAlerts {
     public static final String OUT_OF_STOCK = "telegram_out_of_stock";
     public static final String SHIFT_SHORT = "telegram_shift_short";
     public static final String SALE_VOID = "telegram_sale_void";
+    public static final String APPROVALS = "telegram_approvals";
 
     /** The last units of a product in a warehouse were sold. */
     public record StockOut(Long businessId, Long productId, Long warehouseId) {
@@ -41,6 +43,13 @@ public class TelegramAlerts {
     }
 
     public record SaleVoided(Long businessId, Long receiptId, Long voidedBy, String reason) {
+    }
+
+    /** What waits for an Owner or Manager to approve (FR-5.8). */
+    public enum Waiting { ADJUSTMENT, STOCK_COUNT, SALES_RETURN, PURCHASE_RETURN }
+
+    /** A document now waits for approval: who asked, where, and its value when it has one (USD). */
+    public record ApprovalWaiting(Long businessId, Waiting kind, String number, Long branchId, Long askedBy, BigDecimal amount) {
     }
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -100,6 +109,29 @@ public class TelegramAlerts {
                             + "\nលុបដោយ៖ " + r.get("voided_by") + "\nមូលហេតុ៖ " + e.reason()
                     : "🧾 Sale voided: " + r.get("number") + " (" + total + ")\n" + branch + " · sold by " + r.get("cashier")
                             + "\nVoided by " + r.get("voided_by") + "\nReason: " + e.reason();
+        });
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void on(ApprovalWaiting e) {
+        send(e.businessId(), APPROVALS, km -> {
+            Map<String, Object> r = jdbc.queryForMap("""
+                    select b.name_en as br_en, b.name_km as br_km, (select full_name from users where id = :by) as asked_by
+                      from branches b where b.id = :branch and b.business_id = :business
+                    """, params(e.businessId()).addValue("branch", e.branchId()).addValue("by", e.askedBy()));
+            String what = switch (e.kind()) {
+                case ADJUSTMENT -> km ? "ការកែតម្រូវស្តុក" : "Stock adjustment";
+                case STOCK_COUNT -> km ? "ការរាប់ស្តុក" : "Stock count";
+                case SALES_RETURN -> km ? "ការប្រគល់ពីអតិថិជន" : "Customer return";
+                case PURCHASE_RETURN -> km ? "ការប្រគល់ទៅអ្នកផ្គត់ផ្គង់" : "Supplier return";
+            };
+            String amount = e.amount() == null ? "" : " (" + "$" + e.amount().setScale(2, RoundingMode.HALF_UP).toPlainString() + ")";
+            String branch = name(r, "br_en", "br_km", km);
+            return km ? "✋ រង់ចាំការអនុម័ត៖ " + what + " " + e.number() + amount + "\n" + branch + " · ស្នើដោយ " + r.get("asked_by")
+                            + "\nបើកកម្មវិធី ដើម្បីអនុម័ត ឬបដិសេធ។"
+                    : "✋ Waiting for approval: " + what + " " + e.number() + amount + "\n" + branch + " · asked by " + r.get("asked_by")
+                            + "\nOpen the app to approve or reject it.";
         });
     }
 

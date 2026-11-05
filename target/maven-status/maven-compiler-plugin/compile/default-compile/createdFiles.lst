@@ -42,6 +42,7 @@ com\modernstock\business\WarehouseRepository.class
 com\modernstock\purchase\SupplierCredit$Status.class
 com\modernstock\report\StockReportService$ReorderReport.class
 com\modernstock\sale\ReturnService$RefundRequest.class
+com\modernstock\notification\TelegramAlerts$Waiting.class
 com\modernstock\sale\SalesOrderService$DeliverRequest.class
 com\modernstock\inventory\StockController$WarehouseStock.class
 com\modernstock\partner\Customer$Type.class
@@ -288,6 +289,7 @@ com\modernstock\catalog\CatalogController$UnitRequest.class
 com\modernstock\sale\SalesOrderService.class
 com\modernstock\purchase\PurchaseService$BillUpdateRequest.class
 com\modernstock\business\SettingsService$BusinessSettings.class
+com\modernstock\notification\TelegramAlerts$1.class
 com\modernstock\sale\CashMovement.class
 com\modernstock\admin\AdminPlatformController.class
 com\modernstock\partner\Supplier.class
@@ -350,6 +352,7 @@ com\modernstock\inventory\InventoryController.class
 com\modernstock\billing\BillingInvoice.class
 com\modernstock\business\BusinessTenantResolver.class
 com\modernstock\report\DashboardService$Waiting.class
+com\modernstock\notification\TelegramAlerts$ApprovalWaiting.class
 com\modernstock\account\AccountController$MyBusinessResponse.class
 com\modernstock\admin\AdminManageController$AccountRow.class
 com\modernstock\report\AlertService$Alerts.class

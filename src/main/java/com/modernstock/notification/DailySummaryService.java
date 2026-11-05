@@ -28,7 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * The daily Telegram summary at 07:00 Phnom Penh time (FR-5.2, PLAIN.md 11.10): yesterday's sales (net of returns),
  * gross profit and cash received by currency per branch, then low stock, batches expiring within the first near-expiry
- * window (30 days unless changed, FR-7.10) and transfers in transit for too long (FR-4.13). It goes
+ * window (30 days unless changed, FR-7.10), transfers in transit for too long (FR-4.13), and money: customer invoices
+ * overdue, supplier bills overdue or due within 7 days (FR-5.8). It goes
  * to every active business with a connected chat whose plan has Telegram alerts (every business during the trial), in
  * the business language.
  */
@@ -38,6 +39,10 @@ import lombok.extern.slf4j.Slf4j;
 public class DailySummaryService {
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    /** The Owner can leave the money lines out (Settings › Telegram). */
+    public static final String DEBTS = "telegram_debts";
+    /** Bills due within this many days are listed with the overdue ones. */
+    private static final int BILLS_SOON_DAYS = 7;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final TelegramClient telegram;
@@ -82,7 +87,7 @@ public class DailySummaryService {
         Map<String, Object> business = jdbc.queryForMap("select name_en, name_km, language from businesses where id = :business", p);
         // The Owner can leave the low stock or the expiry line out (Settings › Telegram).
         List<String> off = jdbc.queryForList("select key from business_settings where business_id = :business and value = 'false'"
-                + " and key in ('telegram_low_stock', 'telegram_expiry')", p, String.class);
+                + " and key in ('telegram_low_stock', 'telegram_expiry', '" + DEBTS + "')", p, String.class);
         boolean km = "km".equals(business.get("language"));
         String name = km && business.get("name_km") != null ? (String) business.get("name_km") : (String) business.get("name_en");
 
@@ -170,6 +175,37 @@ public class DailySummaryService {
         if (!off.contains("telegram_expiry") && expiring != null && expiring > 0) {
             lines.add((km ? "⏰ ផុតកំណត់ក្នុង " + khmerDigits(soonDays) + " ថ្ងៃ៖ " : "⏰ Expiring within " + soonDays + " days: ")
                     + expiring + (km ? " បាច់" : expiring == 1 ? " batch" : " batches"));
+        }
+        if (!off.contains(DEBTS)) {
+            Map<String, Object> money = jdbc.queryForMap("""
+                    select (select count(*) from invoices where business_id = :business and status in ('UNPAID', 'PARTLY_PAID')
+                              and due_date < :today) as inv_n,
+                           (select coalesce(sum(total - paid_amount), 0) from invoices where business_id = :business
+                              and status in ('UNPAID', 'PARTLY_PAID') and due_date < :today) as inv_usd,
+                           (select count(*) from bills where business_id = :business and status in ('UNPAID', 'PARTLY_PAID')
+                              and due_date < :today) as late_n,
+                           (select coalesce(sum(total - paid_amount), 0) from bills where business_id = :business
+                              and status in ('UNPAID', 'PARTLY_PAID') and due_date < :today) as late_usd,
+                           (select count(*) from bills where business_id = :business and status in ('UNPAID', 'PARTLY_PAID')
+                              and due_date between :today and :billsSoon) as soon_n,
+                           (select coalesce(sum(total - paid_amount), 0) from bills where business_id = :business
+                              and status in ('UNPAID', 'PARTLY_PAID') and due_date between :today and :billsSoon) as soon_usd
+                    """, p.addValue("billsSoon", Dates.today().plusDays(BILLS_SOON_DAYS)));
+            long invoices = ((Number) money.get("inv_n")).longValue();
+            long lateBills = ((Number) money.get("late_n")).longValue();
+            long soonBills = ((Number) money.get("soon_n")).longValue();
+            if (invoices > 0) {
+                lines.add((km ? "💰 អតិថិជនជំពាក់ហួសកំណត់៖ វិក្កយបត្រ " + invoices + " · "
+                        : "💰 Customers overdue: " + invoices + (invoices == 1 ? " invoice, " : " invoices, ")) + usd(money.get("inv_usd")));
+            }
+            if (lateBills > 0) {
+                lines.add((km ? "🔴 វិក្កយបត្រអ្នកផ្គត់ផ្គង់ហួសកំណត់៖ " + lateBills + " · "
+                        : "🔴 Supplier bills overdue: " + lateBills + ", ") + usd(money.get("late_usd")));
+            }
+            if (soonBills > 0) {
+                lines.add((km ? "📅 វិក្កយបត្រត្រូវបង់ក្នុង " + khmerDigits(BILLS_SOON_DAYS) + " ថ្ងៃ៖ " + soonBills + " · "
+                        : "📅 Bills due within " + BILLS_SOON_DAYS + " days: " + soonBills + ", ") + usd(money.get("soon_usd")));
+            }
         }
         if (late != null && late > 0) {
             int d = TransferService.LATE_DAYS;

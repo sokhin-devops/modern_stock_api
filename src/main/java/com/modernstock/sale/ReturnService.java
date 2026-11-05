@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +22,8 @@ import com.modernstock.catalog.Product;
 import com.modernstock.catalog.ProductService;
 import com.modernstock.common.ApiException;
 import com.modernstock.common.CurrentUser;
-import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.DocumentNumberService.DocType;
+import com.modernstock.common.DocumentNumberService;
 import com.modernstock.common.PageResponse;
 import com.modernstock.currency.CurrencyService;
 import com.modernstock.inventory.StockMovement;
@@ -30,8 +31,9 @@ import com.modernstock.inventory.StockService;
 import com.modernstock.money.Allocation;
 import com.modernstock.money.AllocationRepository;
 import com.modernstock.money.Payment;
-import com.modernstock.money.PaymentService;
 import com.modernstock.money.PaymentService.PaymentLine;
+import com.modernstock.money.PaymentService;
+import com.modernstock.notification.TelegramAlerts;
 import com.modernstock.partner.CustomerRepository;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -126,6 +128,7 @@ public class ReturnService {
     private final DocumentNumberService numbers;
     private final BranchScope scope;
     private final UserRepository users;
+    private final ApplicationEventPublisher events;
     private final ActivityService activity;
 
     /** The sale behind a return: its lines, total and VAT, and where the goods go back. */
@@ -227,6 +230,8 @@ public class ReturnService {
         if (!canPost) {
             r.setStatus(SalesReturn.Status.WAITING_APPROVAL);
             returns.save(r);
+            events.publishEvent(new TelegramAlerts.ApprovalWaiting(BusinessContext.businessId(), TelegramAlerts.Waiting.SALES_RETURN,
+                    r.getNumber(), r.getBranchId(), CurrentUser.id(), r.getTotal()));
             return toResponse(r, null);
         }
         returns.save(r);
