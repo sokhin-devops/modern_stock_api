@@ -1,4 +1,5 @@
-# Weekly update pull requests into dev (doc/plain/DevSecOps.md section 7). Security fixes come as soon as they're out.
+# Weekly update pull requests into dev (doc/plain/DevSecOps.md section 7). Security fixes come as soon as they're out;
+# other new versions wait 7 days (cooldown), since a hijacked release is usually caught within days.
 version: 2
 updates:
   - package-ecosystem: maven
@@ -6,6 +7,8 @@ updates:
     target-branch: dev
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: org.springframework.boot:spring-boot-starter-parent
@@ -18,8 +21,12 @@ updates:
     target-branch: dev
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: github-actions
     directory: /
     target-branch: dev
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
