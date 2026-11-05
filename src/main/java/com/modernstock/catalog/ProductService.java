@@ -175,6 +175,39 @@ public class ProductService {
         return get(id);
     }
 
+    /**
+     * In-store barcodes for goods that came without one (FR-1.9): an EAN-13 in the 20–29 range GS1 keeps for a shop's
+     * own use, "20" + the product's ID + the check digit, so it is unique and the scanner finds it like any barcode.
+     * Products that already have a barcode keep it.
+     */
+    @Transactional
+    public List<ProductResponse> giveBarcodes(List<Long> ids) {
+        for (Product p : products.findAllById(ids)) {
+            if (p.getBarcode() != null && !p.getBarcode().isBlank()) {
+                continue;
+            }
+            String code = storeBarcode(p.getId());
+            if (products.findByBarcode(code).isPresent()) {
+                throw ApiException.conflict("BARCODE_TAKEN", code);
+            }
+            Map<String, Object> before = facts(p);
+            p.setBarcode(code);
+            activity.changed("PRODUCT_CHANGED", "PRODUCT", p.getId(), p.getNameEn(), null, before, facts(p));
+        }
+        return ids.stream().map(this::get).toList();
+    }
+
+    /** "20", the ID in 10 digits, and the EAN-13 check digit. */
+    static String storeBarcode(long id) {
+        String twelve = "20" + String.format("%010d", id);
+        int sum = 0;
+        for (int i = 0; i < 12; i++) {
+            int digit = twelve.charAt(i) - '0';
+            sum += i % 2 == 0 ? digit : digit * 3;
+        }
+        return twelve + (10 - sum % 10) % 10;
+    }
+
     /** Products are never deleted: old documents point to them. */
     @Transactional
     public void deactivate(Long id) {

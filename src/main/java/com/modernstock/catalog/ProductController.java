@@ -33,6 +33,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 
 @Tag(name = "Products")
@@ -125,6 +127,17 @@ public class ProductController {
     @PreAuthorize("hasAuthority('product:view')")
     public List<BranchReorderResponse> reorderLevels(@PathVariable Long id) {
         return products.branchReorderLevels(id);
+    }
+
+    @Operation(summary = "Give in-store barcodes", description = "FR-1.9: products without a barcode get an EAN-13 for the shop's "
+            + "own use (20…), so their labels can be printed and scanned. Products with a barcode keep it.")
+    @PostMapping("/barcodes")
+    @PreAuthorize("hasAuthority('product:manage')")
+    public List<ProductResponse> giveBarcodes(@Valid @RequestBody BarcodeRequest req) {
+        return products.giveBarcodes(req.productIds());
+    }
+
+    public record BarcodeRequest(@NotEmpty @Size(max = 200) List<Long> productIds) {
     }
 
     @Operation(summary = "Set reorder levels for some branches",

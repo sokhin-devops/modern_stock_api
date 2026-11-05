@@ -125,6 +125,7 @@ com\modernstock\billing\BillingInvoice$Kind.class
 com\modernstock\expense\ExpenseController.class
 com\modernstock\inventory\StockCountService$CountResponse.class
 com\modernstock\sale\SalesOrder$Status.class
+com\modernstock\catalog\ProductController$BarcodeRequest.class
 com\modernstock\sale\SalesOrderService$DeliverResponse.class
 com\modernstock\report\DashboardService$DayPoint.class
 com\modernstock\purchase\PurchaseReturnService$PurchaseReturnResponse.class
