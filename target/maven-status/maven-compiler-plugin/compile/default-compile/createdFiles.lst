@@ -59,6 +59,7 @@ com\modernstock\report\MoneyReportService$PurchaseRow.class
 com\modernstock\account\AccountController$UpdateMeRequest.class
 com\modernstock\sale\Invoice$Status.class
 com\modernstock\auth\UserRepository.class
+com\modernstock\publicsite\PublicController$Announcement.class
 com\modernstock\sale\ReturnService$CreditRefundRequest.class
 com\modernstock\sale\CashMovementRepository.class
 com\modernstock\business\StarterSets$ProductSeed.class
@@ -180,6 +181,7 @@ com\modernstock\sale\ReturnService.class
 com\modernstock\billing\BillingController$KeepRequest.class
 com\modernstock\purchase\Bill.class
 com\modernstock\purchase\SupplierCredit.class
+com\modernstock\admin\AdminPlatformController$PlatformStats.class
 com\modernstock\inventory\StockCountService$CountedLine.class
 com\modernstock\common\TenantLine.class
 com\modernstock\money\Payment$Direction.class
@@ -287,6 +289,7 @@ com\modernstock\sale\SalesOrderService.class
 com\modernstock\purchase\PurchaseService$BillUpdateRequest.class
 com\modernstock\business\SettingsService$BusinessSettings.class
 com\modernstock\sale\CashMovement.class
+com\modernstock\admin\AdminPlatformController.class
 com\modernstock\partner\Supplier.class
 com\modernstock\sale\PosService$DeliveryResponse.class
 com\modernstock\purchase\PurchaseOrder$Status.class
@@ -326,6 +329,7 @@ com\modernstock\expense\ExpenseService$ExpenseRequest.class
 com\modernstock\billing\BillingService.class
 com\modernstock\money\PaymentRepository.class
 com\modernstock\catalog\ImportService$RowResult.class
+com\modernstock\admin\AdminPlatformController$PlatformSettingsBody.class
 com\modernstock\catalog\ImportController$ProductImport.class
 com\modernstock\auth\AuthService$SignUpRequest.class
 com\modernstock\report\AlertService$Alert.class
@@ -447,6 +451,7 @@ com\modernstock\currency\CurrencyService$Rate.class
 com\modernstock\admin\AdminManageController$AddonUpdate.class
 com\modernstock\catalog\ImportController.class
 com\modernstock\inventory\StockCountService$RecountRequest.class
+com\modernstock\admin\AdminPlatformController$WeekPoint.class
 com\modernstock\purchase\PurchaseReturnService$SupplierRefundRequest.class
 com\modernstock\expense\Expense$Status.class
 com\modernstock\sale\PosService$SaleLineResponse.class
@@ -483,6 +488,7 @@ com\modernstock\sale\SaleLines$LineResponse.class
 com\modernstock\sale\SalesReceipt.class
 com\modernstock\business\BusinessMember$Status.class
 com\modernstock\member\InvitationRepository.class
+com\modernstock\publicsite\PublicController$PlatformInfo.class
 com\modernstock\sale\CashShiftRepository.class
 com\modernstock\currency\ExchangeRateController.class
 com\modernstock\purchase\GoodsReceipt$Status.class

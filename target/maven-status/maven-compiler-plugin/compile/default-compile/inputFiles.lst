@@ -3,6 +3,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\activity\ActivityService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\admin\AdminController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\admin\AdminManageController.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\admin\AdminPlatformController.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\admin\DemoDataSeeder.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\admin\PlatformSettings.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\auth\AuthController.java
