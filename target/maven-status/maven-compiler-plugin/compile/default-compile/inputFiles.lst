@@ -24,6 +24,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\BillingPaymentRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\BillingReminders.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\BillingService.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\CouponService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\DemoPaymentGateway.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\EntitlementService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\billing\PaymentGateway.java

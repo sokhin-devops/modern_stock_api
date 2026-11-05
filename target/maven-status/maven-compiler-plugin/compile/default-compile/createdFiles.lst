@@ -202,6 +202,7 @@ com\modernstock\business\StarterSets$CategorySeed.class
 com\modernstock\catalog\ProductService.class
 com\modernstock\notification\MailService.class
 com\modernstock\report\ReportService$AbcReport.class
+com\modernstock\billing\CouponService$CouponRow.class
 com\modernstock\business\Branch.class
 com\modernstock\member\Invitation$Method.class
 com\modernstock\billing\PaymentGateway.class
@@ -227,6 +228,7 @@ com\modernstock\business\BusinessController$1.class
 com\modernstock\inventory\StockRequest$Status.class
 com\modernstock\report\StockReportService$CountReport.class
 com\modernstock\sale\Delivery$Status.class
+com\modernstock\admin\AdminController$FreeMonths.class
 com\modernstock\purchase\BillRepository.class
 com\modernstock\common\ProblemWriter.class
 com\modernstock\inventory\AdjustmentService$AdjustmentRequest.class
@@ -299,6 +301,7 @@ com\modernstock\inventory\StockMovement$Type.class
 com\modernstock\member\RoleService.class
 com\modernstock\money\Payment$Currency.class
 com\modernstock\inventory\StockMovement.class
+com\modernstock\billing\CouponService$CouponRequest.class
 com\modernstock\catalog\CatalogController$UnitRequest.class
 com\modernstock\sale\SalesOrderService.class
 com\modernstock\purchase\PurchaseService$BillUpdateRequest.class
@@ -398,6 +401,7 @@ com\modernstock\catalog\ProductUnit.class
 com\modernstock\billing\Subscription$Cycle.class
 com\modernstock\member\InvitationService$InvitationResponse.class
 com\modernstock\purchase\PurchaseService$QuickPurchaseRequest.class
+com\modernstock\billing\CouponService.class
 com\modernstock\catalog\ProductService$BranchPriceRequest.class
 com\modernstock\catalog\ProductService$ProductUnitRequest.class
 com\modernstock\purchase\PurchaseService$BillResponse.class
@@ -466,6 +470,7 @@ com\modernstock\publicsite\PublicController.class
 com\modernstock\inventory\StockController.class
 com\modernstock\report\StockReportService$CountRow.class
 com\modernstock\member\InvitationService$InviteRequest.class
+com\modernstock\billing\CouponService$Running.class
 com\modernstock\sale\SalesReceipt$Status.class
 com\modernstock\sale\DeliveryRepository.class
 com\modernstock\report\MoneyReportService$Party.class
@@ -486,6 +491,7 @@ com\modernstock\sale\PosService$CartItem.class
 com\modernstock\money\AllocationRepository.class
 com\modernstock\billing\BillingReminders.class
 com\modernstock\purchase\PurchaseReturnService$PurchaseReturnRequest.class
+com\modernstock\billing\BillingController$CouponRedeem.class
 com\modernstock\billing\BillingController$KeepResponse.class
 com\modernstock\billing\SubscriptionAddon$Status.class
 com\modernstock\config\AppProperties$Billing.class
@@ -508,6 +514,7 @@ com\modernstock\publicsite\ContactMessage.class
 com\modernstock\purchase\GoodsReceiptItem.class
 com\modernstock\sale\SaleDocuments.class
 com\modernstock\member\RoleController.class
+com\modernstock\billing\CouponService$Discount.class
 com\modernstock\business\BranchService.class
 com\modernstock\admin\AdminManageController.class
 com\modernstock\sale\SaleLines$LineResponse.class

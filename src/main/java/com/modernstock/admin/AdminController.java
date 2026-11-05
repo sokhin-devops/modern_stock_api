@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.modernstock.billing.BillingService;
+import com.modernstock.billing.CouponService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,8 @@ public class AdminController {
 
     private final JdbcTemplate jdbc;
     private final BillingService billing;
+    private final CouponService coupons;
+    private final com.modernstock.activity.ActivityService activity;
 
     @Operation(summary = "Businesses with their subscription", description = "Newest first.")
     @GetMapping("/businesses")
@@ -80,6 +83,44 @@ public class AdminController {
         if (jdbc.update("update businesses set status = 'ACTIVE', updated_at = now() where id = ? and status = 'SUSPENDED'", id) == 0) {
             throw com.modernstock.common.ApiException.conflict("ADMIN_BUSINESS_STATUS");
         }
+    }
+
+    public record FreeMonths(@jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(24) int months,
+                             @io.swagger.v3.oas.annotations.media.Schema(description = "For a business on Free: the plan to give (PRO by default)")
+                             String planCode,
+                             @jakarta.validation.constraints.Size(max = 120) String note) {
+    }
+
+    @Operation(summary = "Give free months",
+            description = "FR-10.16: a trial or a paid period runs longer; a business on Free gets the plan for that long, then back to "
+                    + "Free unless the Owner keeps it. Refused while past due. In the business's activity log.")
+    @PostMapping("/businesses/{id}/free-months")
+    @Transactional
+    public void giveFreeMonths(@PathVariable Long id, @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody FreeMonths req) {
+        billing.giveFreeMonths(id, req.months(), req.planCode());
+        activity.recordAs(id, com.modernstock.common.CurrentUser.id(), "FREE_MONTHS_GIVEN", "SUBSCRIPTION", null,
+                req.months() + (req.note() == null || req.note().isBlank() ? "" : " · " + req.note().strip()));
+    }
+
+    // ---------------------------------------------------------------- coupons (FR-10.16)
+
+    @Operation(summary = "Coupons", description = "Newest first, with how many businesses entered each.")
+    @GetMapping("/coupons")
+    public List<CouponService.CouponRow> coupons() {
+        return coupons.list();
+    }
+
+    @PostMapping("/coupons")
+    public List<CouponService.CouponRow> createCoupon(@jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CouponService.CouponRequest req) {
+        coupons.create(req);
+        return coupons.list();
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/coupons/{id}")
+    public List<CouponService.CouponRow> updateCoupon(@PathVariable Long id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CouponService.CouponRequest req) {
+        coupons.update(id, req);
+        return coupons.list();
     }
 
     @Operation(summary = "Demo control: End trial now",

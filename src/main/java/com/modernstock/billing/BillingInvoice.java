@@ -50,4 +50,7 @@ public class BillingInvoice extends BaseEntity {
     private Long subscriptionAddonId;
     /** What the amount is for, e.g. "Pro, yearly + Extra branch". */
     private String description;
+    /** FR-10.16: what a coupon took off this invoice, and which one. */
+    private BigDecimal discount = BigDecimal.ZERO;
+    private String couponCode;
 }

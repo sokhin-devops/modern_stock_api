@@ -74,7 +74,8 @@ public class BillingController {
                               BigDecimal amount, BillingInvoice.Status status, Instant createdAt, Instant paidAt,
                               @Schema(description = "A bank transfer waits for the super admin") boolean transferPending,
                               @Schema(description = "Why the last bank transfer was rejected") String transferRejected,
-                              @Schema(description = "The payment that paid it (for the receipt)") PaymentView paidWith) {
+                              @Schema(description = "The payment that paid it (for the receipt)") PaymentView paidWith,
+                              @Schema(description = "Taken off by a coupon (FR-10.16)") BigDecimal discount, String couponCode) {
     }
 
     public record PaymentView(Long id, Long invoiceId, String gateway, String reference, BigDecimal amount,
@@ -94,7 +95,11 @@ public class BillingController {
                                   List<InvoiceView> openInvoices, List<PlanView> plans, List<AddonView> addons,
                                   List<MyAddon> myAddons, List<String> banks,
                                   @Schema(description = "Where to send a bank transfer; empty = transfers are off") List<AppProperties.TransferAccount> transferAccounts,
-                                  @Schema(description = "Who issues the billing invoices") AppProperties.Company issuer) {
+                                  @Schema(description = "Who issues the billing invoices") AppProperties.Company issuer,
+                                  @Schema(description = "The coupon running: its discount on the next full-period invoices") CouponService.Running coupon) {
+    }
+
+    public record CouponRedeem(@NotBlank @jakarta.validation.constraints.Size(max = 30) String code) {
     }
 
     public record PlanRequest(@NotBlank String planCode,
@@ -117,6 +122,7 @@ public class BillingController {
     private final SubscriptionRepository subscriptions;
     private final ActivityService activity;
     private final PlanRepository plans;
+    private final CouponService coupons;
     private final BillingInvoiceRepository invoices;
     private final BillingPaymentRepository payments;
     private final AddonRepository addons;
@@ -158,7 +164,18 @@ public class BillingController {
                 open.isEmpty() ? null : open.get(0), open,
                 plans.findByPublicPlanTrueOrderBySortOrder().stream().map(BillingController::planView).toList(),
                 catalog.values().stream().filter(Addon::isActive).map(BillingController::addonView).toList(), mine,
-                BillingService.BANKS, billing.transferAccounts(), billing.company());
+                BillingService.BANKS, billing.transferAccounts(), billing.company(), coupons.running(businessId).orElse(null));
+    }
+
+    @Operation(summary = "Enter a coupon",
+            description = "FR-10.16: its discount goes on the next full-period invoices (an open first or renewal invoice gets it now). "
+                    + "422 COUPON_INVALID, COUPON_USED (this business had it), COUPON_RUNNING (another one runs).")
+    @PostMapping("/coupon")
+    public BillingResponse redeemCoupon(@Valid @RequestBody CouponRedeem req) {
+        CouponService.Running r = billing.redeemCoupon(req.code());
+        activity.record("COUPON_REDEEMED", "SUBSCRIPTION", null, r.code(), null, null,
+                ActivityService.values("coupon", r.code(), "percentOff", r.percentOff(), "periods", r.periodsLeft()));
+        return getBilling();
     }
 
     @Operation(summary = "Billing invoices (SUB-…)", description = "Newest first.")
@@ -321,7 +338,8 @@ public class BillingController {
                 ? tries.get(0).getFailureReason() : null;
         return new InvoiceView(i.getId(), i.getNumber(), i.getKind(), plan.getCode(), plan.getName(), i.getBillingCycle(), i.getDescription(),
                 i.getPeriodStart(), i.getPeriodEnd(), i.getAmount(), i.getStatus(), i.getCreatedAt(), i.getPaidAt(),
-                i.getStatus() == BillingInvoice.Status.OPEN && pending, i.getStatus() == BillingInvoice.Status.OPEN ? rejected : null, paidWith);
+                i.getStatus() == BillingInvoice.Status.OPEN && pending, i.getStatus() == BillingInvoice.Status.OPEN ? rejected : null, paidWith,
+                i.getDiscount(), i.getCouponCode());
     }
 
     private PaymentView view(BillingPayment p) {

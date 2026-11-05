@@ -65,6 +65,7 @@ public class BillingService {
     private final FileStorage files;
     private final AppProperties props;
     private final TransactionTemplate tx;
+    private final CouponService coupons;
 
     // ---------------------------------------------------------------- the Owner's actions (in the open business)
 
@@ -87,8 +88,79 @@ public class BillingService {
             throw ApiException.conflict("BILLING_ALREADY_SUBSCRIBED");
         }
         voidOpen(s.getBusinessId(), EnumSet.allOf(BillingInvoice.Kind.class));
-        invoice(s.getBusinessId(), BillingInvoice.Kind.NEW, plan, Instant.now(), chosen);
+        BillingInvoice first = invoice(s.getBusinessId(), BillingInvoice.Kind.NEW, plan, Instant.now(), chosen);
+        if (first.getAmount().signum() == 0) {
+            paid(first, Instant.now()); // a coupon paid all of it
+        }
         return s;
+    }
+
+    /**
+     * The Owner enters a coupon (FR-10.16): the next full-period invoices are cheaper. An open first or renewal invoice
+     * not discounted yet (and without a bank transfer waiting) gets it now.
+     */
+    @Transactional
+    public CouponService.Running redeemCoupon(String code) {
+        Long businessId = mine().getBusinessId();
+        CouponService.Running running = coupons.redeem(businessId, code);
+        invoices.findByBusinessIdAndStatus(businessId, BillingInvoice.Status.OPEN).stream()
+                .filter(i -> (i.getKind() == BillingInvoice.Kind.NEW || i.getKind() == BillingInvoice.Kind.RENEWAL) && i.getCouponCode() == null)
+                .filter(i -> payments.findByInvoiceIdOrderByCreatedAtDesc(i.getId()).stream()
+                        .noneMatch(p -> p.getStatus() == BillingPayment.Status.PENDING))
+                .findFirst()
+                .ifPresent(i -> coupons.take(businessId, i.getAmount()).ifPresent(d -> {
+                    discount(i, d);
+                    if (i.getAmount().signum() == 0) {
+                        paid(i, Instant.now());
+                    }
+                }));
+        return running;
+    }
+
+    /**
+     * Free months from the super admin (FR-10.16): a trial or a paid period runs longer; a business on Free gets the
+     * plan for that long, and goes back to Free after unless the Owner keeps it (Resume). Not while past due.
+     */
+    @Transactional
+    public Subscription giveFreeMonths(Long businessId, int months, String planCode) {
+        Subscription s = subscriptions.findByBusinessId(businessId).orElseThrow(() -> ApiException.notFound("subscription"));
+        Instant now = Instant.now();
+        switch (s.getStatus()) {
+            case TRIALING -> {
+                Instant ends = plusMonths(s.getTrialEndsAt() == null || s.getTrialEndsAt().isBefore(now) ? now : s.getTrialEndsAt(), months);
+                s.setTrialEndsAt(ends);
+                s.setCurrentPeriodEnd(ends);
+            }
+            case ACTIVE -> s.setCurrentPeriodEnd(plusMonths(s.getCurrentPeriodEnd() == null ? now : s.getCurrentPeriodEnd(), months));
+            case PAST_DUE -> throw ApiException.conflict("BILLING_FREE_PAST_DUE");
+            default -> {
+                Plan plan = paidPlan(planCode == null || planCode.isBlank() ? Plan.PRO : planCode);
+                s.setStatus(Subscription.Status.ACTIVE);
+                s.setPlanId(plan.getId());
+                s.setBillingCycle(Subscription.Cycle.MONTHLY);
+                s.setCurrentPeriodStart(now);
+                s.setCurrentPeriodEnd(plusMonths(now, months));
+                s.setCancelAtPeriodEnd(true);
+                s.setSubscribed(false);
+                s.setPastDueSince(null);
+                s.setPendingPlanId(null);
+                s.setPendingBillingCycle(null);
+                limits.apply(businessId, plan);
+            }
+        }
+        return s;
+    }
+
+    private static Instant plusMonths(Instant from, int months) {
+        return ZonedDateTime.ofInstant(from, Dates.PHNOM_PENH).plusMonths(months).toInstant();
+    }
+
+    private static void discount(BillingInvoice i, CouponService.Discount d) {
+        i.setAmount(i.getAmount().subtract(d.amount()).max(BigDecimal.ZERO));
+        i.setDiscount(d.amount());
+        i.setCouponCode(d.code());
+        String text = i.getDescription() + " − coupon " + d.code() + " " + d.percentOff() + "%";
+        i.setDescription(text.length() > 255 ? text.substring(0, 255) : text);
     }
 
     /**
@@ -374,10 +446,14 @@ public class BillingService {
                     if (s.isSubscribed()) {
                         // The first invoice comes when the trial ends; unpaid, it is past due like a renewal.
                         Plan chosen = plan(s.getPlanId());
-                        invoice(businessId, BillingInvoice.Kind.NEW, chosen, s.getTrialEndsAt(), s.getBillingCycle());
-                        s.setStatus(Subscription.Status.PAST_DUE);
-                        s.setPastDueSince(now);
-                        limits.apply(businessId, chosen);
+                        BillingInvoice first = invoice(businessId, BillingInvoice.Kind.NEW, chosen, s.getTrialEndsAt(), s.getBillingCycle());
+                        if (first.getAmount().signum() == 0) {
+                            paid(first, now); // a coupon paid all of it
+                        } else {
+                            s.setStatus(Subscription.Status.PAST_DUE);
+                            s.setPastDueSince(now);
+                            limits.apply(businessId, chosen);
+                        }
                     } else {
                         toFree(s, Subscription.Status.EXPIRED);
                     }
@@ -396,14 +472,18 @@ public class BillingService {
                         subscriptionAddons.findByBusinessIdAndStatusInOrderById(businessId, List.of(SubscriptionAddon.Status.ACTIVE))
                                 .stream().filter(SubscriptionAddon::isRemoveAtPeriodEnd).forEach(this::end);
                         Subscription.Cycle cycle = s.getPendingBillingCycle() != null ? s.getPendingBillingCycle() : s.getBillingCycle();
-                        invoice(businessId, BillingInvoice.Kind.RENEWAL, next, s.getCurrentPeriodEnd(), cycle);
+                        BillingInvoice renewal = invoice(businessId, BillingInvoice.Kind.RENEWAL, next, s.getCurrentPeriodEnd(), cycle);
                         s.setPlanId(next.getId()); // a downgrade happens here, at the end of the period
                         s.setBillingCycle(cycle);
                         s.setPendingPlanId(null);
                         s.setPendingBillingCycle(null);
-                        s.setStatus(Subscription.Status.PAST_DUE);
-                        s.setPastDueSince(now);
-                        limits.apply(businessId, next);
+                        if (renewal.getAmount().signum() == 0) {
+                            paid(renewal, now); // a coupon paid all of it
+                        } else {
+                            s.setStatus(Subscription.Status.PAST_DUE);
+                            s.setPastDueSince(now);
+                            limits.apply(businessId, next);
+                        }
                     }
                 }
             }
@@ -506,7 +586,9 @@ public class BillingService {
             amount = amount.add(addon.price(cycle).multiply(BigDecimal.valueOf(sa.getQuantity())));
             what.add(addon.getName() + (sa.getQuantity() > 1 ? " ×" + sa.getQuantity() : ""));
         }
-        return newInvoice(businessId, kind, plan, start, end, cycle, amount, String.join(" + ", what));
+        BillingInvoice i = newInvoice(businessId, kind, plan, start, end, cycle, amount, String.join(" + ", what));
+        coupons.take(businessId, amount).ifPresent(d -> discount(i, d));
+        return i;
     }
 
     private BillingInvoice newInvoice(Long businessId, BillingInvoice.Kind kind, Plan plan, Instant start, Instant end,
