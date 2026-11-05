@@ -173,13 +173,16 @@ public class PosService {
         BigDecimal total = priced.total();
         BigDecimal totalKhr = currency.toKhr(total, rate.usdToKhr());
 
-        // 3. Money handed over, compared in riel (PLAIN.md 11.6 example: ៛51,000 for ៛50,600 → ៛400 change)
+        // 3. Money handed over, compared in riel (PLAIN.md 11.6 example: ៛51,000 for ៛50,600 → ៛400 change).
+        // The riel total is rounded to the riel step, the dollar total is exact, and either one pays in full: exactly
+        // $16.09 for ៛66,000 is enough, and exactly $23.49 by KHQR for ៛96,300 is not "more than the total".
         List<PaymentLine> paid = req.payments() == null ? List.of() : req.payments();
         BigDecimal tenderedKhr = sum(paid.stream().map(pl -> pl.currency() == Payment.Currency.USD
                 ? pl.amount().multiply(rate.usdToKhr()) : pl.amount()).toList()).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal exactKhr = total.multiply(rate.usdToKhr()).setScale(0, RoundingMode.HALF_UP);
         BigDecimal paidUsd = sum(paid.stream().map(pl -> PaymentService.usd(pl, rate.usdToKhr())).toList());
-        boolean paidInFull = tenderedKhr.compareTo(totalKhr) >= 0;
-        if (tenderedKhr.compareTo(totalKhr) > 0 && paid.stream().noneMatch(pl -> pl.method() == Payment.Method.CASH)) {
+        boolean paidInFull = tenderedKhr.compareTo(totalKhr.min(exactKhr)) >= 0;
+        if (tenderedKhr.compareTo(totalKhr.max(exactKhr)) > 0 && paid.stream().noneMatch(pl -> pl.method() == Payment.Method.CASH)) {
             throw ApiException.rule("OVERPAYMENT_NOT_CASH");
         }
 
@@ -206,7 +209,7 @@ public class PosService {
             receipt.setVat(vat);
             receipt.setTotal(total);
             receipt.setTotalKhr(totalKhr);
-            receipt.setChangeKhr(currency.roundKhrDown(tenderedKhr.subtract(totalKhr)));
+            receipt.setChangeKhr(currency.roundKhrDown(tenderedKhr.subtract(totalKhr)).max(BigDecimal.ZERO));
             receipt.setStatus(SalesReceipt.Status.POSTED);
             receipt.setPostedAt(now);
             receipt.setNote(req.note());
