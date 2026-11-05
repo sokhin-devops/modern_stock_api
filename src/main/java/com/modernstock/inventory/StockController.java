@@ -29,6 +29,7 @@ import com.modernstock.business.BranchRepository;
 import com.modernstock.business.BranchScope;
 import com.modernstock.business.BranchService;
 import com.modernstock.business.BusinessContext;
+import com.modernstock.business.ExpiryWindows;
 import com.modernstock.business.Warehouse;
 import com.modernstock.business.WarehouseRepository;
 import com.modernstock.catalog.Product;
@@ -84,7 +85,10 @@ public class StockController {
     public record StockSummary(BigDecimal onHandValue,
                                @Schema(description = "Σ qty sent × unit cost of transfers in transit, shown as its own line")
                                BigDecimal inTransitValue,
-                               long lowStockItems, long expiringIn30Days, long expiredBatches) {
+                               long lowStockItems,
+                               @Schema(description = "Batches expiring within the first near-expiry window (FR-7.10)") long expiringSoon,
+                               @Schema(description = "That window in days, 30 unless changed in Settings › Rules") int expiringDays,
+                               long expiredBatches) {
     }
 
     private final ProductRepository products;
@@ -98,6 +102,7 @@ public class StockController {
     private final ReorderLevels reorderLevels;
     private final BranchRepository branchRepository;
     private final WarehouseRepository warehouses;
+    private final ExpiryWindows expiryWindows;
 
     @Operation(summary = "Stock on hand per product", description = "Base units, summed over the branches you see. q matches name, SKU or barcode.")
     @GetMapping("/levels")
@@ -255,11 +260,12 @@ public class StockController {
         long low = all.stream().filter(p -> p.isActive() && reorderAt.get(p.getId()).signum() > 0
                 && onHand.getOrDefault(p.getId(), BigDecimal.ZERO).compareTo(reorderAt.get(p.getId())) <= 0).count();
         LocalDate today = Dates.today();
-        List<StockBatch> soon = batches.findExpiring(today.plusDays(30), visible, null);
+        int soonDays = expiryWindows.current().get(0);
+        List<StockBatch> soon = batches.findExpiring(today.plusDays(soonDays), visible, null);
         long expired = soon.stream().filter(b -> b.getExpiryDate().isBefore(today)).count();
         BigDecimal inTransit = BusinessContext.branchFilter() == null
                 ? transfers.inTransitValue().setScale(2, RoundingMode.HALF_UP) : null;
-        return new StockSummary(value, inTransit, low, soon.size() - expired, expired);
+        return new StockSummary(value, inTransit, low, soon.size() - expired, soonDays, expired);
     }
 
     private StockRow row(Product p, BigDecimal qty, BigDecimal reorderAt, Map<Long, String> symbols) {

@@ -18,14 +18,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.modernstock.billing.EntitlementService;
+import com.modernstock.business.ExpiryWindows;
 import com.modernstock.catalog.ReorderLevels;
 import com.modernstock.common.Dates;
+import com.modernstock.inventory.TransferService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * The daily Telegram summary at 07:00 Phnom Penh time (FR-5.2, PLAIN.md 11.10): yesterday's sales (net of returns),
- * gross profit and cash received by currency per branch, then low stock and batches expiring within 30 days. It goes
+ * gross profit and cash received by currency per branch, then low stock, batches expiring within the first near-expiry
+ * window (30 days unless changed, FR-7.10) and transfers in transit for too long (FR-4.13). It goes
  * to every active business with a connected chat whose plan has Telegram alerts (every business during the trial), in
  * the business language.
  */
@@ -39,6 +42,7 @@ public class DailySummaryService {
     private final NamedParameterJdbcTemplate jdbc;
     private final TelegramClient telegram;
     private final EntitlementService entitlements;
+    private final ExpiryWindows expiryWindows;
 
     @Scheduled(cron = "0 0 7 * * *", zone = "Asia/Phnom_Penh")
     public void sendAll() {
@@ -71,8 +75,10 @@ public class DailySummaryService {
     /** The summary of one day for one business, in its language. */
     @Transactional(readOnly = true)
     public String text(Long businessId, LocalDate day) {
+        int soonDays = expiryWindows.of(businessId).get(0);
         MapSqlParameterSource p = new MapSqlParameterSource().addValue("business", businessId).addValue("day", day)
-                .addValue("soon", Dates.today().plusDays(30)).addValue("today", Dates.today());
+                .addValue("soon", Dates.today().plusDays(soonDays)).addValue("today", Dates.today())
+                .addValue("lateDays", TransferService.LATE_DAYS);
         Map<String, Object> business = jdbc.queryForMap("select name_en, name_km, language from businesses where id = :business", p);
         // The Owner can leave the low stock or the expiry line out (Settings › Telegram).
         List<String> off = jdbc.queryForList("select key from business_settings where business_id = :business and value = 'false'"
@@ -147,6 +153,10 @@ public class DailySummaryService {
                 select count(*) from stock_batches where business_id = :business and qty_on_hand > 0
                    and expiry_date between :today and :soon
                 """, p, Long.class);
+        Long late = jdbc.queryForObject("""
+                select count(*) from stock_transfers where business_id = :business and status = 'IN_TRANSIT'
+                   and sent_at < now() - make_interval(days => :lateDays)
+                """, p, Long.class);
         lines.add("");
         boolean showLow = !off.contains("telegram_low_stock");
         if (showLow && low.isEmpty()) {
@@ -158,8 +168,13 @@ public class DailySummaryService {
                     + product + ": " + qty(first.get("qty")) + " " + first.get("symbol") + (km ? " នៅសល់)" : " left)"));
         }
         if (!off.contains("telegram_expiry") && expiring != null && expiring > 0) {
-            lines.add((km ? "⏰ ផុតកំណត់ក្នុង ៣០ ថ្ងៃ៖ " : "⏰ Expiring within 30 days: ") + expiring
-                    + (km ? " បាច់" : expiring == 1 ? " batch" : " batches"));
+            lines.add((km ? "⏰ ផុតកំណត់ក្នុង " + khmerDigits(soonDays) + " ថ្ងៃ៖ " : "⏰ Expiring within " + soonDays + " days: ")
+                    + expiring + (km ? " បាច់" : expiring == 1 ? " batch" : " batches"));
+        }
+        if (late != null && late > 0) {
+            int d = TransferService.LATE_DAYS;
+            lines.add((km ? "🚚 កំពុងដឹកលើស " + khmerDigits(d) + " ថ្ងៃ៖ " + late + " ការផ្ទេរ"
+                    : "🚚 In transit over " + d + " days: " + late + (late == 1 ? " transfer" : " transfers")));
         }
         return String.join("\n", lines);
     }
@@ -172,6 +187,15 @@ public class DailySummaryService {
     private static String khr(Object value) {
         DecimalFormat f = new DecimalFormat("៛#,##0", DecimalFormatSymbols.getInstance(Locale.US));
         return f.format(((BigDecimal) value).setScale(0, RoundingMode.HALF_UP));
+    }
+
+    /** 30 → ៣០, for the Khmer lines. */
+    private static String khmerDigits(int n) {
+        StringBuilder s = new StringBuilder();
+        for (char c : String.valueOf(n).toCharArray()) {
+            s.append((char) ('០' + (c - '0')));
+        }
+        return s.toString();
     }
 
     private static String qty(Object value) {

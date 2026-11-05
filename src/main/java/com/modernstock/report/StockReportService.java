@@ -17,6 +17,7 @@ import com.modernstock.business.BranchScope;
 import com.modernstock.business.BusinessContext;
 import com.modernstock.catalog.ReorderLevels;
 import com.modernstock.common.Dates;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -56,7 +57,10 @@ public class StockReportService {
                             String batchNo, LocalDate expiryDate, int daysLeft, BigDecimal qty, BigDecimal value) {
     }
 
-    public record ExpiryReport(int days, long expired, long expiring, BigDecimal expiredValue, BigDecimal expiringValue,
+    public record ExpiryReport(int days,
+                               @Schema(description = "The business's three near-expiry windows (FR-7.10), to pick from")
+                               List<Integer> windows,
+                               long expired, long expiring, BigDecimal expiredValue, BigDecimal expiringValue,
                                List<ExpiryRow> rows) {
     }
 
@@ -167,7 +171,7 @@ public class StockReportService {
 
     /** Batches in stock that expire within N days, and expired batches still in stock (soonest first). */
     @Transactional(readOnly = true)
-    public ExpiryReport expiry(int days) {
+    public ExpiryReport expiry(int days, List<Integer> windows) {
         ReportScope.requireStock();
         boolean cost = ReportScope.cost();
         LocalDate today = Dates.today();
@@ -191,7 +195,7 @@ public class StockReportService {
         List<ExpiryRow> expired = rows.stream().filter(r -> r.daysLeft() < 0).toList();
         BigDecimal expiredValue = cost ? expired.stream().map(ExpiryRow::value).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
         BigDecimal allValue = cost ? rows.stream().map(ExpiryRow::value).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
-        return new ExpiryReport(days, expired.size(), rows.size() - expired.size(), expiredValue,
+        return new ExpiryReport(days, windows, expired.size(), rows.size() - expired.size(), expiredValue,
                 cost ? allValue.subtract(expiredValue) : null, rows);
     }
 

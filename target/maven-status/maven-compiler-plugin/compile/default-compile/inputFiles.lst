@@ -50,6 +50,7 @@ D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernst
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\BusinessSetting.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\BusinessSettingRepository.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\BusinessTenantResolver.java
+D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\ExpiryWindows.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\ReadOnlyBranches.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\SettingsService.java
 D:\Project_Learning\stock_management\modern_stock_api\src\main\java\com\modernstock\business\StarterSets.java

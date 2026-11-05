@@ -207,7 +207,7 @@ public class BusinessService {
         settings.update(new SettingsService.BusinessSettings(req.vatEnabled(), defaults.vatRate(),
                 req.rielRounding() == null ? defaults.rielRounding() : req.rielRounding(),
                 defaults.maxDiscountPercent(), defaults.allowNegativeStock(), defaults.receiptFooter(), defaults.receiptHeader(),
-                defaults.receiptPaper(), defaults.receiptShowVatTin(), defaults.khqrEnabled(), defaults.bankEnabled(), null));
+                defaults.receiptPaper(), defaults.receiptShowVatTin(), defaults.khqrEnabled(), defaults.bankEnabled(), null, null));
         currency.set(Dates.today(), req.usdToKhr());
 
         StarterSets.StarterSet set = StarterSets.forType(req.starterType() != null ? req.starterType() : b.getBusinessType());

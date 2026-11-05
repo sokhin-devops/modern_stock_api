@@ -3,6 +3,7 @@ package com.modernstock.business;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -36,6 +37,9 @@ public class SettingsService {
             @Schema(description = "Print the business VAT TIN on receipts") boolean receiptShowVatTin,
             @Schema(description = "Customers may pay by KHQR (cash is always on)") boolean khqrEnabled,
             @Schema(description = "Customers may pay by bank transfer") boolean bankEnabled,
+            @Schema(description = "Near-expiry windows in days (FR-7.10): three, each longer than the one before, up to 365; "
+                    + "the first one warns. Leave out to keep them.", example = "[30, 60, 90]")
+            List<Integer> expiryDays,
             @Schema(description = "Read only: the shop's KHQR image (/public/files/...), shown at the POS", accessMode = Schema.AccessMode.READ_ONLY)
             String khqrImageUrl) {
     }
@@ -57,6 +61,7 @@ public class SettingsService {
         DEFAULTS.put("payment_khqr", "true");
         DEFAULTS.put("payment_bank", "true");
         DEFAULTS.put(KHQR_IMAGE, "");
+        DEFAULTS.put(ExpiryWindows.KEY, ExpiryWindows.format(ExpiryWindows.DEFAULT));
     }
 
     private final BusinessSettingRepository repository;
@@ -77,6 +82,7 @@ public class SettingsService {
                 Boolean.parseBoolean(values.get("receipt_show_vat_tin")),
                 Boolean.parseBoolean(values.get("payment_khqr")),
                 Boolean.parseBoolean(values.get("payment_bank")),
+                ExpiryWindows.parse(values.get(ExpiryWindows.KEY)),
                 values.get(KHQR_IMAGE).isBlank() ? null : FileStorage.url(values.get(KHQR_IMAGE)));
     }
 
@@ -87,6 +93,9 @@ public class SettingsService {
         }
         if (s.receiptPaper() != 58 && s.receiptPaper() != 80) {
             throw com.modernstock.common.ApiException.badRequest("RECEIPT_PAPER_INVALID");
+        }
+        if (s.expiryDays() != null && !ExpiryWindows.valid(s.expiryDays())) {
+            throw com.modernstock.common.ApiException.badRequest("EXPIRY_WINDOWS_INVALID", ExpiryWindows.MAX_DAYS);
         }
         put("vat_enabled", String.valueOf(s.vatEnabled()));
         put("vat_rate", s.vatRate().toPlainString());
@@ -99,6 +108,9 @@ public class SettingsService {
         put("receipt_show_vat_tin", String.valueOf(s.receiptShowVatTin()));
         put("payment_khqr", String.valueOf(s.khqrEnabled()));
         put("payment_bank", String.valueOf(s.bankEnabled()));
+        if (s.expiryDays() != null) {
+            put(ExpiryWindows.KEY, ExpiryWindows.format(s.expiryDays()));
+        }
         return get();
     }
 

@@ -44,6 +44,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TransferService {
 
+    /** A branch transfer still in transit after this many days is late (FR-4.13): an alert and a line in the daily summary. */
+    public static final int LATE_DAYS = 3;
+
     public static final String REF = "TRANSFER";
 
     public record TransferLineRequest(

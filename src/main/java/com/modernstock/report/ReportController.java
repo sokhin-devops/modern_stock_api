@@ -1,6 +1,7 @@
 package com.modernstock.report;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.modernstock.business.ExpiryWindows;
 import com.modernstock.common.ApiException;
 import com.modernstock.report.MoneyReportService.Party;
 import com.modernstock.report.MoneyReportService.PurchaseReport;
@@ -44,6 +46,7 @@ public class ReportController {
     private final ReportService reports;
     private final StockReportService stock;
     private final MoneyReportService money;
+    private final ExpiryWindows expiryWindows;
 
     @Operation(summary = "Sales summary and gross profit",
             description = "Grouped by DAY, PRODUCT, CATEGORY, BRANCH or CASHIER. Cost, profit and margin only for Owners and "
@@ -102,14 +105,18 @@ public class ReportController {
         return stock.reorder();
     }
 
-    @Operation(summary = "Near expiry and expired", description = "Batches in stock expiring within 30, 60 or 90 days, and expired ones.")
+    @Operation(summary = "Near expiry and expired",
+            description = "Batches in stock expiring within one of the business's windows (30, 60 or 90 days unless changed in "
+                    + "Settings › Rules; the first by default), and expired ones.")
     @GetMapping("/expiry")
     @PreAuthorize("hasAuthority('report:view')")
-    public ExpiryReport expiryReport(@RequestParam(defaultValue = "30") int days) {
-        if (days != 30 && days != 60 && days != 90) {
-            throw ApiException.badRequest("EXPIRY_DAYS_INVALID");
+    public ExpiryReport expiryReport(@RequestParam(required = false) Integer days) {
+        List<Integer> windows = expiryWindows.current();
+        int within = days == null ? windows.get(0) : days;
+        if (!windows.contains(within)) {
+            throw ApiException.badRequest("EXPIRY_DAYS_INVALID", windows.get(0), windows.get(1), windows.get(2));
         }
-        return stock.expiry(days);
+        return stock.expiry(within, windows);
     }
 
     @Operation(summary = "Stock count differences", description = "Counted vs system quantity in counts posted in the period. Defaults: the last 30 days.")
