@@ -21,7 +21,7 @@
         <!-- PLAIN.md 9.1 targets Java 21. 17 is the minimum for Spring Boot 3; raise this once JDK 21 is installed. -->
         <java.version>17</java.version>
         <springdoc.version>2.8.13</springdoc.version>
-        <embedded-postgres.version>2.1.0</embedded-postgres.version>
+        <embedded-postgres.version>2.2.2</embedded-postgres.version>
         <!-- Rate limits (PLAIN.md 7, 9.1). Apache-2.0, no licence key; pinned. -->
         <bucket4j.version>8.16.1</bucket4j.version>
         <!-- Pictures in Supabase Storage through its S3 endpoint (FileStorage, DevSecOps.md C4). Apache-2.0. -->
