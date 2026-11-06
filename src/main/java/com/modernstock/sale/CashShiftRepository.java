@@ -16,9 +16,11 @@ public interface CashShiftRepository extends TenantRepository<CashShift> {
     @Query("""
             select s from CashShift s
             where s.branchId in :branchIds and (:cashierId is null or s.cashierId = :cashierId)
+              and (:status is null or s.status = :status) and s.openedAt >= :start and s.openedAt < :end
             order by s.id desc
             """)
-    Page<CashShift> search(Collection<Long> branchIds, Long cashierId, Pageable pageable);
+    Page<CashShift> search(Collection<Long> branchIds, Long cashierId, CashShift.Status status, java.time.Instant start,
+                           java.time.Instant end, Pageable pageable);
 
     @Override
     default String entityName() {

@@ -102,24 +102,27 @@ public class StockController {
     private final BranchScope scope;
     private final BranchService branches;
     private final ReorderLevels reorderLevels;
+    private final com.modernstock.catalog.ReorderPoints reorderPoints;
     private final BranchRepository branchRepository;
     private final WarehouseRepository warehouses;
     private final ExpiryWindows expiryWindows;
     private final Reservations reservations;
 
-    @Operation(summary = "Stock on hand per product", description = "Base units, summed over the branches you see. q matches name, SKU or barcode.")
+    @Operation(summary = "Stock on hand per product", description = "Base units, summed over the branches you see, or in one "
+            + "warehouse (warehouseId, PLAIN.md 12.2 stock per warehouse). q matches name, SKU or barcode.")
     @GetMapping("/levels")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
     public PageResponse<StockRow> stockLevels(@RequestParam(required = false) String q,
                                          @RequestParam(required = false) Long categoryId,
+                                         @RequestParam(required = false) Long warehouseId,
                                          @ParameterObject @PageableDefault(size = 20, sort = "nameEn") Pageable pageable) {
         Page<Product> page = products.search(like(q), categoryId, true, pageable);
-        Map<Long, BigDecimal> onHand = productService.onHand(page.getContent().stream().map(Product::getId).toList(),
-                scope.warehouseIds());
+        List<Long> visible = oneOrAll(warehouseId);
+        Map<Long, BigDecimal> onHand = productService.onHand(page.getContent().stream().map(Product::getId).toList(), visible);
         Map<Long, String> symbols = productService.unitSymbols();
         Map<Long, BigDecimal> reorderAt = reorderLevels.inScope(page.getContent());
-        Map<Long, BigDecimal> reserved = reservations.reserved(onHand.keySet(), scope.warehouseIds(), null);
+        Map<Long, BigDecimal> reserved = reservations.reserved(onHand.keySet(), visible, null);
         return PageResponse.of(page, p -> row(p, onHand.getOrDefault(p.getId(), BigDecimal.ZERO), reorderAt.get(p.getId()), symbols,
                 reserved.getOrDefault(p.getId(), BigDecimal.ZERO)));
     }
@@ -237,14 +240,25 @@ public class StockController {
                 m.getBatchId(), m.getType(), m.getQty(), m.getBalanceAfter(), m.getReferenceType(), m.getReferenceId()));
     }
 
-    @Operation(summary = "Batches expiring soon", description = "Batches in stock that expire within N days, expired ones included.")
+    @Operation(summary = "Recalculate reorder points now",
+            description = "PLAIN.md 11.9: done every morning at 06:50 for every business; this runs it now for the open one "
+                    + "(after an import or a big change). Returns how many products have a point from their sales history.")
+    @org.springframework.web.bind.annotation.PostMapping("/reorder-points/recalculate")
+    @PreAuthorize("hasAuthority('product:manage')")
+    public java.util.Map<String, Integer> recalculateReorderPoints() {
+        return java.util.Map.of("products", reorderPoints.recalculate(com.modernstock.business.BusinessContext.businessId()));
+    }
+
+    @Operation(summary = "Batches expiring soon", description = "Batches in stock that expire within N days, expired ones included; "
+            + "in one warehouse with warehouseId. A large N (3650) lists every batch with an expiry date.")
     @GetMapping("/batches")
     @PreAuthorize("hasAuthority('stock:view')")
     @Transactional(readOnly = true)
     public List<BatchRow> expiringBatches(@Parameter(example = "30") @RequestParam(defaultValue = "30") int expiringInDays,
-                                   @RequestParam(required = false) Long productId) {
+                                   @RequestParam(required = false) Long productId,
+                                   @RequestParam(required = false) Long warehouseId) {
         LocalDate today = Dates.today();
-        List<StockBatch> list = batches.findExpiring(today.plusDays(expiringInDays), scope.warehouseIds(), productId);
+        List<StockBatch> list = batches.findExpiring(today.plusDays(Math.min(expiringInDays, 36500)), oneOrAll(warehouseId), productId);
         Map<Long, Product> byId = productService.byIds(list.stream().map(StockBatch::getProductId).toList());
         Map<Long, String> labels = branches.warehouseLabels();
         return list.stream().map(b -> batchRow(b, byId.get(b.getProductId()), labels, today)).toList();
@@ -288,5 +302,17 @@ public class StockController {
 
     private static String like(String q) {
         return q == null || q.isBlank() ? "%" : "%" + q.trim().toLowerCase() + "%";
+    }
+
+    /** The warehouses a request covers: the one asked for (when the member sees it), else all they see. */
+    private List<Long> oneOrAll(Long warehouseId) {
+        List<Long> visible = scope.warehouseIds();
+        if (warehouseId == null) {
+            return visible;
+        }
+        if (!visible.contains(warehouseId)) {
+            throw ApiException.forbidden("BRANCH_ACCESS_DENIED");
+        }
+        return List.of(warehouseId);
     }
 }

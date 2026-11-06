@@ -43,6 +43,7 @@ public class SalesController {
     private final CashShiftService cashShifts;
     private final DebitNoteService debitNotes;
     private final CashierSwitchService cashierSwitch;
+    private final SaleVoids voids;
 
     // ------------------------------------------------------------------ POS
 
@@ -103,6 +104,16 @@ public class SalesController {
     }
 
     @Tag(name = "POS")
+    @Operation(summary = "Void an invoice", description = "Owner or Manager. Voids its delivery too: the goods go back into the "
+            + "same batches and a sales order counts them as not delivered. Only while nothing paid it and nothing was returned "
+            + "(422 VOID_INVOICE_PAID, VOID_HAS_RETURNS, VOID_HAS_DEBIT_NOTES). A debit note uses /debit-notes/{id}/void.")
+    @PostMapping("/invoices/{id}/void")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public InvoiceResponse voidInvoice(@PathVariable Long id) {
+        return voids.voidInvoice(id);
+    }
+
+    @Tag(name = "POS")
     @GetMapping("/deliveries")
     @PreAuthorize("hasAnyAuthority('delivery:manage', 'sale:create')")
     public PageResponse<DeliveryResponse> listDeliveries(@RequestParam(required = false) Long customerId,
@@ -154,6 +165,15 @@ public class SalesController {
     }
 
     @Tag(name = "POS")
+    @Operation(summary = "Void a payment received", description = "Owner or Manager. The invoices it paid are open again. A POS "
+            + "sale paid in full is voided as a sale (422 VOID_PAYMENT_OF_SALE); a refund goes with its credit note.")
+    @PostMapping("/payments-received/{id}/void")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public PaymentResponse voidPaymentReceived(@PathVariable Long id) {
+        return voids.voidPayment(id);
+    }
+
+    @Tag(name = "POS")
     @GetMapping("/payments-received")
     @PreAuthorize("hasAuthority('sale:create')")
     public PageResponse<PaymentResponse> paymentsReceived(@RequestParam(required = false) Long customerId,
@@ -185,8 +205,11 @@ public class SalesController {
     @Operation(summary = "Shifts", description = "Cashiers see their own; cash_shift:all sees all, with differences.")
     @GetMapping("/cash-shifts")
     @PreAuthorize("hasAnyAuthority('cash_shift:own', 'cash_shift:all')")
-    public PageResponse<CashShiftResponse> listCashShifts(@ParameterObject Pageable pageable) {
-        return cashShifts.list(pageable);
+    public PageResponse<CashShiftResponse> listCashShifts(@RequestParam(required = false) CashShift.Status status,
+                                                          @RequestParam(required = false) java.time.LocalDate from,
+                                                          @RequestParam(required = false) java.time.LocalDate to,
+                                                          @ParameterObject Pageable pageable) {
+        return cashShifts.list(status, from, to, pageable);
     }
 
     @Tag(name = "Cash shifts")

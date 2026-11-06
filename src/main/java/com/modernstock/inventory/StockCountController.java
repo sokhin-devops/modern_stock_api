@@ -37,8 +37,11 @@ public class StockCountController {
     @GetMapping
     @PreAuthorize("hasAuthority('count:manage')")
     public PageResponse<CountResponse> listStockCounts(@RequestParam(required = false) StockCount.Status status,
+                                                       @RequestParam(required = false) String q,
+                                                       @RequestParam(required = false) java.time.LocalDate from,
+                                                       @RequestParam(required = false) java.time.LocalDate to,
                                                        @ParameterObject Pageable pageable) {
-        return counts.list(status, pageable);
+        return counts.list(status, q, from, to, pageable);
     }
 
     @GetMapping("/{id}")
@@ -93,6 +96,14 @@ public class StockCountController {
     @PreAuthorize("hasAuthority('adjustment:approve')")
     public CountResponse postStockCount(@PathVariable Long id) {
         return counts.post(id);
+    }
+
+    @Operation(summary = "Void a posted count", description = "Owner or Manager: every difference is reversed, back into the same "
+            + "batches, while what it added is still there (422 VOID_STOCK_GONE).")
+    @PostMapping("/{id}/void")
+    @PreAuthorize("hasAuthority('adjustment:approve')")
+    public CountResponse voidStockCount(@PathVariable Long id) {
+        return counts.voidCount(id);
     }
 
     @DeleteMapping("/{id}")

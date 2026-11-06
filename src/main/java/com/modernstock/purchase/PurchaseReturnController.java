@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 public class PurchaseReturnController {
 
     private final PurchaseReturnService returns;
+    private final PurchaseVoids voids;
 
     @Operation(summary = "What can still be sent back from a goods receipt")
     @GetMapping("/goods-receipts/{id}/returnable")
@@ -83,6 +84,23 @@ public class PurchaseReturnController {
     @PreAuthorize("hasAuthority('bill:manage')")
     public PurchaseReturnResponse reject(@PathVariable Long id) {
         return returns.reject(id);
+    }
+
+    @Operation(summary = "Void a posted purchase return", description = "The goods come back into the batches they left and the "
+            + "supplier credit is voided; credit used on bills is taken off them. 422 VOID_CREDIT_REFUNDED when the supplier "
+            + "refunded it.")
+    @PostMapping("/purchase-returns/{id}/void")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PurchaseReturnResponse voidReturn(@PathVariable Long id) {
+        return voids.voidReturn(id);
+    }
+
+    @Operation(summary = "Void a supplier credit written by hand", description = "Credit used on bills is taken off them. 422 "
+            + "VOID_CREDIT_FROM_RETURN for one made by a return (void the return), VOID_CREDIT_REFUNDED when refunded.")
+    @PostMapping("/supplier-credits/{id}/void")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public SupplierCreditResponse voidCredit(@PathVariable Long id) {
+        return voids.voidCredit(id);
     }
 
     @Operation(summary = "A supplier credit by hand", description = "For a price correction; used on bills or refunded later.")

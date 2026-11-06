@@ -112,8 +112,14 @@ public class StockCountService {
     private final ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
-    public PageResponse<CountResponse> list(StockCount.Status status, Pageable pageable) {
-        return PageResponse.of(counts.search(scope.branchIds(), status, pageable), c -> toResponse(c, false));
+    public PageResponse<CountResponse> list(StockCount.Status status, String q, java.time.LocalDate from, java.time.LocalDate to,
+                                            Pageable pageable) {
+        String number = q == null || q.isBlank() ? "%" : "%" + q.trim().toLowerCase() + "%";
+        Instant start = (from == null ? java.time.LocalDate.of(2000, 1, 1) : from)
+                .atStartOfDay(com.modernstock.common.Dates.PHNOM_PENH).toInstant();
+        Instant end = (to == null ? java.time.LocalDate.of(2999, 1, 1) : to.plusDays(1))
+                .atStartOfDay(com.modernstock.common.Dates.PHNOM_PENH).toInstant();
+        return PageResponse.of(counts.search(scope.branchIds(), status, number, start, end, pageable), c -> toResponse(c, false));
     }
 
     @Transactional(readOnly = true)
@@ -270,6 +276,29 @@ public class StockCountService {
         activity.record("COUNT_POSTED", "STOCK_COUNT", c.getId(), c.getNumber(), c.getBranchId(), null,
                 ActivityService.values("differences", posted.differences(), "value", posted.differenceValue()));
         return posted;
+    }
+
+    /**
+     * A posted count was wrong (PLAIN.md 11.1 rule 3): every difference is reversed, back into the same batches, while what
+     * it added is still there (VOID_STOCK_GONE). Count again afterwards.
+     */
+    @Transactional
+    public CountResponse voidCount(Long id) {
+        StockCount c = counts.lock(id);
+        BusinessContext.requireBranch(c.getBranchId());
+        if (c.getStatus() != StockCount.Status.POSTED) {
+            throw ApiException.rule("WRONG_STATUS", c.getStatus());
+        }
+        StockService.Ref ref = new StockService.Ref(REF, c.getId());
+        stock.requireStillThere(ref);
+        stock.reverse(ref);
+        c.setStatus(StockCount.Status.VOID);
+        c.setVoidedAt(Instant.now());
+        c.setVoidedBy(CurrentUser.id());
+        CountResponse voided = toResponse(c, true);
+        activity.record("COUNT_VOIDED", "STOCK_COUNT", c.getId(), c.getNumber(), c.getBranchId(), null,
+                ActivityService.values("differences", voided.differences(), "value", voided.differenceValue()));
+        return voided;
     }
 
     /** A draft count can be thrown away; nothing in stock changed yet. */

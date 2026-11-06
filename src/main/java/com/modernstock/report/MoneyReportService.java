@@ -184,6 +184,15 @@ public class MoneyReportService {
     @Transactional(readOnly = true)
     public Statement statement(Party party, Long id, LocalDate from, LocalDate to) {
         ReportScope.requireMoney();
+        return statementOf(party, id, from, to);
+    }
+
+    /**
+     * The same statement for the customer or supplier page (PLAIN.md 12.2): the caller checks that the member may see
+     * that customer or supplier (customer:view, supplier:view); branches still follow BranchScope.
+     */
+    @Transactional(readOnly = true)
+    public Statement statementOf(Party party, Long id, LocalDate from, LocalDate to) {
         if (to.isBefore(from)) {
             throw ApiException.badRequest("DATE_RANGE_INVALID");
         }

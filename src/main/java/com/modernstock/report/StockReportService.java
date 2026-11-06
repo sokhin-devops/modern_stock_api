@@ -29,9 +29,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class StockReportService {
 
-    /** Days of average sales a suggested order covers on top of the lead time. */
+    /** Days of average sales a suggested order covers beyond the reorder point (the next order cycle). */
     static final int COVER_DAYS = 14;
-    /** Days of sales the average is taken over. */
+    /** Days of sales the average is taken over (ADS, PLAIN.md 11.9: N = 30). */
     static final int SALES_DAYS = 30;
 
     public record Pack(String symbol, BigDecimal factor) {
@@ -62,8 +62,18 @@ public class StockReportService {
     }
 
     public record ReorderRow(Long productId, String sku, String name, String nameKm, String unitSymbol, Pack pack,
-                             BigDecimal onHand, BigDecimal reorderLevel, BigDecimal soldPerDay, int leadTimeDays,
-                             BigDecimal suggestedQty, BigDecimal lastCost, BigDecimal suggestedValue) {
+                             BigDecimal onHand,
+                             @Schema(description = "The reorder point used: from sales history (basis SALES), else the manual level")
+                             BigDecimal reorderLevel,
+                             @Schema(description = "Average daily sales (ADS) over the last 30 days") BigDecimal soldPerDay,
+                             int leadTimeDays,
+                             BigDecimal suggestedQty, BigDecimal lastCost, BigDecimal suggestedValue,
+                             @Schema(description = "SALES: ADS × lead time + safety stock; MANUAL: not enough sales history yet")
+                             String basis,
+                             @Schema(description = "(max daily sales × max lead time) − (ADS × average lead time); null on MANUAL")
+                             BigDecimal safetyStock,
+                             BigDecimal maxDailySales,
+                             @Schema(description = "Unused (kept for older clients)") BigDecimal manualLevel) {
     }
 
     public record ReorderReport(int coverDays, int salesDays, BigDecimal suggestedValue, List<ReorderRow> rows) {
@@ -151,8 +161,11 @@ public class StockReportService {
     }
 
     /**
-     * Low stock with a suggested order: enough for the lead time plus 14 days of average sales (last 30 days), on top
-     * of the reorder level kept as safety stock, minus what is on hand; at least back up to twice the reorder level.
+     * Low stock with a suggested order (PLAIN.md 11.9). The level is the one every low-stock check uses (ReorderLevels):
+     * a branch's own manual level, else the reorder point recalculated each morning from its sales history
+     * (ReorderPoints: ADS × lead time + safety stock), else the product's manual level; summed over the branches seen.
+     * A product at or below it is listed. The suggestion brings it to that level plus 14 days of average sales, or, on
+     * a manual level, up to twice the level.
      */
     @Transactional(readOnly = true)
     public ReorderReport reorder() {
@@ -164,22 +177,34 @@ public class StockReportService {
                 .addValue("to", today)
                 .addValue("cashier", null, java.sql.Types.BIGINT);
         List<ReorderRow> rows = jdbc.query("""
-                select s.*, coalesce(sold.qty, 0) as sold from (%s) s
+                select s.*, coalesce(sold.qty, 0) as sold, rp.ads, rp.safety, rp.max_day, coalesce(rp.n, 0) as computed
+                  from (%s) s
                   left join (select product_id, sum(base_qty) as qty from (%s) l group by product_id) sold on sold.product_id = s.id
+                  left join (select product_id, sum(ads) as ads, sum(safety_stock) as safety, sum(max_daily) as max_day, count(*) as n
+                               from reorder_points
+                              where business_id = :business and branch_id in (:branches)
+                                and not exists (select 1 from branch_reorder_levels o
+                                                 where o.branch_id = reorder_points.branch_id and o.product_id = reorder_points.product_id)
+                              group by product_id) rp on rp.product_id = s.id
                  where s.reorder_level > 0 and s.qty <= s.reorder_level
                  order by s.qty / nullif(s.reorder_level, 0), s.name_en
                 """.formatted(ON_HAND, ReportService.LINES), p, (rs, n) -> {
             BigDecimal onHand = rs.getBigDecimal("qty");
             BigDecimal level = rs.getBigDecimal("reorder_level");
             int lead = rs.getInt("lead_time_days");
-            BigDecimal perDay = rs.getBigDecimal("sold").divide(BigDecimal.valueOf(SALES_DAYS), 3, RoundingMode.HALF_UP);
-            BigDecimal byDemand = perDay.multiply(BigDecimal.valueOf(lead + COVER_DAYS)).add(level).subtract(onHand);
-            BigDecimal byLevel = level.multiply(BigDecimal.valueOf(2)).subtract(onHand);
-            BigDecimal suggested = byDemand.max(byLevel).max(BigDecimal.ZERO).setScale(0, RoundingMode.CEILING);
+            boolean history = rs.getLong("computed") > 0;
+            BigDecimal perDay = history ? rs.getBigDecimal("ads")
+                    : rs.getBigDecimal("sold").divide(BigDecimal.valueOf(SALES_DAYS), 3, RoundingMode.HALF_UP);
+            BigDecimal suggested = history
+                    ? level.add(perDay.multiply(BigDecimal.valueOf(COVER_DAYS))).subtract(onHand)
+                    : level.multiply(BigDecimal.valueOf(2)).subtract(onHand);
+            suggested = suggested.max(BigDecimal.ZERO).setScale(0, RoundingMode.CEILING);
             BigDecimal avg = rs.getBigDecimal("avg_cost");
             return new ReorderRow(rs.getLong("id"), rs.getString("sku"), rs.getString("name_en"), rs.getString("name_km"),
                     rs.getString("symbol"), pack(rs.getString("pack_symbol"), rs.getBigDecimal("pack_factor")), onHand, level,
-                    perDay, lead, suggested, cost ? avg : null, cost ? money(suggested.multiply(avg)) : null);
+                    perDay, lead, suggested, cost ? avg : null, cost ? money(suggested.multiply(avg)) : null,
+                    history ? "SALES" : "MANUAL", history ? rs.getBigDecimal("safety") : null,
+                    history ? rs.getBigDecimal("max_day") : null, null);
         });
         BigDecimal total = cost ? rows.stream().map(ReorderRow::suggestedValue).reduce(BigDecimal.ZERO, BigDecimal::add) : null;
         return new ReorderReport(COVER_DAYS, SALES_DAYS, total, rows);

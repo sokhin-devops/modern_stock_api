@@ -2,6 +2,7 @@ package com.modernstock.partner;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import org.springdoc.core.annotations.ParameterObject;
@@ -57,7 +58,8 @@ public class PartnerController {
     public record SupplierResponse(Long id, String name, String contactPerson, String phone, String telegram,
                                    String address, String vatTin, int paymentTermsDays, BigDecimal openingBalance,
                                    LocalDate openingBalanceDate, boolean active,
-                                   @Schema(description = "What you owe this supplier now, USD") BigDecimal balance) {
+                                   @Schema(description = "What you owe this supplier now, USD") BigDecimal balance,
+                                   @Schema(description = "The part of it past its due date") BigDecimal overdue) {
     }
 
     public record CustomerRequest(@NotBlank @Size(max = 160) String name,
@@ -74,7 +76,8 @@ public class PartnerController {
     public record CustomerResponse(Long id, String name, Customer.Type type, String phone, String address,
                                    String vatTin, BigDecimal creditLimit, int paymentTermsDays,
                                    BigDecimal openingBalance, LocalDate openingBalanceDate, boolean active,
-                                   @Schema(description = "What the customer owes now, USD (negative = deposit)") BigDecimal balance) {
+                                   @Schema(description = "What the customer owes now, USD (negative = deposit)") BigDecimal balance,
+                                   @Schema(description = "The part of it past its due date") BigDecimal overdue) {
     }
 
     private final SupplierRepository suppliers;
@@ -92,8 +95,11 @@ public class PartnerController {
     public PageResponse<SupplierResponse> searchSuppliers(@RequestParam(required = false) String q,
                                                     @ParameterObject @PageableDefault(sort = "name") Pageable pageable) {
         Page<Supplier> page = suppliers.search(like(q), pageable);
-        Map<Long, BigDecimal> owed = balances.suppliers(page.getContent().stream().map(Supplier::getId).toList());
-        return PageResponse.of(page, s -> toResponse(s, owed.getOrDefault(s.getId(), BigDecimal.ZERO)));
+        List<Long> ids = page.getContent().stream().map(Supplier::getId).toList();
+        Map<Long, BigDecimal> owed = balances.suppliers(ids);
+        Map<Long, BigDecimal> late = balances.suppliersOverdue(ids);
+        return PageResponse.of(page, s -> toResponse(s, owed.getOrDefault(s.getId(), BigDecimal.ZERO),
+                late.getOrDefault(s.getId(), BigDecimal.ZERO)));
     }
 
     @Tag(name = "Suppliers")
@@ -102,7 +108,8 @@ public class PartnerController {
     @Transactional(readOnly = true)
     public SupplierResponse getSupplier(@PathVariable Long id) {
         Supplier s = suppliers.get(id);
-        return toResponse(s, balances.suppliers(java.util.List.of(id)).getOrDefault(id, BigDecimal.ZERO));
+        return toResponse(s, balances.suppliers(List.of(id)).getOrDefault(id, BigDecimal.ZERO),
+                balances.suppliersOverdue(List.of(id)).getOrDefault(id, BigDecimal.ZERO));
     }
 
     @Tag(name = "Suppliers")
@@ -112,7 +119,7 @@ public class PartnerController {
     @Transactional
     public SupplierResponse createSupplier(@Valid @RequestBody SupplierRequest req) {
         Supplier s = suppliers.save(apply(new Supplier(), req));
-        return toResponse(s, s.getOpeningBalance());
+        return toResponse(s, s.getOpeningBalance(), BigDecimal.ZERO);
     }
 
     @Tag(name = "Suppliers")
@@ -145,8 +152,11 @@ public class PartnerController {
     public PageResponse<CustomerResponse> searchCustomers(@RequestParam(required = false) String q,
                                                     @ParameterObject @PageableDefault(sort = "name") Pageable pageable) {
         Page<Customer> page = customers.search(like(q), pageable);
-        Map<Long, BigDecimal> owed = balances.customers(page.getContent().stream().map(Customer::getId).toList());
-        return PageResponse.of(page, c -> toResponse(c, owed.getOrDefault(c.getId(), BigDecimal.ZERO)));
+        List<Long> ids = page.getContent().stream().map(Customer::getId).toList();
+        Map<Long, BigDecimal> owed = balances.customers(ids);
+        Map<Long, BigDecimal> late = balances.customersOverdue(ids);
+        return PageResponse.of(page, c -> toResponse(c, owed.getOrDefault(c.getId(), BigDecimal.ZERO),
+                late.getOrDefault(c.getId(), BigDecimal.ZERO)));
     }
 
     @Tag(name = "Customers")
@@ -154,7 +164,8 @@ public class PartnerController {
     @PreAuthorize("hasAnyAuthority('customer:view', 'customer:create_pos')")
     @Transactional(readOnly = true)
     public CustomerResponse getCustomer(@PathVariable Long id) {
-        return toResponse(customers.get(id), balances.customer(id));
+        return toResponse(customers.get(id), balances.customer(id),
+                balances.customersOverdue(List.of(id)).getOrDefault(id, BigDecimal.ZERO));
     }
 
     @Tag(name = "Customers")
@@ -172,7 +183,7 @@ public class PartnerController {
             c.setOpeningBalanceDate(null);
         }
         customers.save(c);
-        return toResponse(c, c.getOpeningBalance());
+        return toResponse(c, c.getOpeningBalance(), BigDecimal.ZERO);
     }
 
     @Tag(name = "Customers")
@@ -225,16 +236,16 @@ public class PartnerController {
         return c;
     }
 
-    private static SupplierResponse toResponse(Supplier s, BigDecimal balance) {
+    private static SupplierResponse toResponse(Supplier s, BigDecimal balance, BigDecimal overdue) {
         return new SupplierResponse(s.getId(), s.getName(), s.getContactPerson(), s.getPhone(), s.getTelegram(),
                 s.getAddress(), s.getVatTin(), s.getPaymentTermsDays(), s.getOpeningBalance(),
-                s.getOpeningBalanceDate(), s.isActive(), balance);
+                s.getOpeningBalanceDate(), s.isActive(), balance, overdue);
     }
 
-    private static CustomerResponse toResponse(Customer c, BigDecimal balance) {
+    private static CustomerResponse toResponse(Customer c, BigDecimal balance, BigDecimal overdue) {
         return new CustomerResponse(c.getId(), c.getName(), c.getType(), c.getPhone(), c.getAddress(), c.getVatTin(),
                 c.getCreditLimit(), c.getPaymentTermsDays(), c.getOpeningBalance(), c.getOpeningBalanceDate(),
-                c.isActive(), balance);
+                c.isActive(), balance, overdue);
     }
 
     private static String like(String q) {

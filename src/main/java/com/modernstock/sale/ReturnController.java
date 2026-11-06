@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 public class ReturnController {
 
     private final ReturnService returns;
+    private final SaleVoids voids;
 
     @Operation(summary = "What can still be returned from a sales receipt")
     @GetMapping("/sales-receipts/{id}/returnable")
@@ -88,6 +89,23 @@ public class ReturnController {
     @PreAuthorize("hasAuthority('sale:void')")
     public ReturnResponse rejectSalesReturn(@PathVariable Long id) {
         return returns.reject(id);
+    }
+
+    @Operation(summary = "Void a posted return", description = "Good items leave stock again while they are still there (422 "
+            + "VOID_STOCK_GONE) and the credit note is voided; credit used on invoices is taken off them. 422 VOID_CREDIT_REFUNDED "
+            + "when the money was given back.")
+    @PostMapping("/sales-returns/{id}/void")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public ReturnResponse voidSalesReturn(@PathVariable Long id) {
+        return voids.voidReturn(id);
+    }
+
+    @Operation(summary = "Void a credit note written by hand", description = "Credit used on invoices is taken off them. 422 "
+            + "VOID_CREDIT_FROM_RETURN for one made by a return (void the return), VOID_CREDIT_REFUNDED when refunded.")
+    @PostMapping("/credit-notes/{id}/void")
+    @PreAuthorize("hasAuthority('sale:void')")
+    public CreditNoteResponse voidCreditNote(@PathVariable Long id) {
+        return voids.voidCreditNote(id);
     }
 
     @Operation(summary = "A credit note by hand", description = "For a price correction; used on invoices or refunded later.")

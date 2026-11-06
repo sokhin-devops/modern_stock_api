@@ -60,6 +60,7 @@ public class PurchaseController {
     private final BranchScope scope;
     private final SupplierRepository suppliers;
     private final FileStorage files;
+    private final PurchaseVoids voids;
 
     @GetMapping("/purchase-orders")
     @PreAuthorize("hasAuthority('purchase_order:view')")
@@ -147,6 +148,29 @@ public class PurchaseController {
     @PreAuthorize("hasAnyAuthority('purchase_order:view', 'goods_receipt:create')")
     public GoodsReceiptResponse getGoodsReceipt(@PathVariable Long id) {
         return purchases.receipt(id);
+    }
+
+    @Operation(summary = "Void a goods receipt", description = "Owner or Manager. Voids its bill too: the goods leave the same "
+            + "batches while they are still there (422 VOID_STOCK_GONE), the average cost loses them, and the order counts them "
+            + "as not received. 422 VOID_BILL_PAID while the bill has payments, VOID_HAS_RETURNS after a purchase return.")
+    @PostMapping("/goods-receipts/{id}/void")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public GoodsReceiptResponse voidGoodsReceipt(@PathVariable Long id) {
+        return voids.voidGoodsReceipt(id);
+    }
+
+    @Operation(summary = "Void a bill", description = "A bill always comes from a goods receipt: both are voided (see the receipt void).")
+    @PostMapping("/bills/{id}/void")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public BillResponse voidBill(@PathVariable Long id) {
+        return voids.voidBill(id);
+    }
+
+    @Operation(summary = "Void a supplier payment", description = "The bills it paid are open again by the same amounts.")
+    @PostMapping("/supplier-payments/{id}/void")
+    @PreAuthorize("hasAuthority('bill:manage')")
+    public PaymentResponse voidSupplierPayment(@PathVariable Long id) {
+        return voids.voidPayment(id);
     }
 
     @Operation(summary = "Bills", description = "Sorted by due date. overdue is calculated from the due date.")
