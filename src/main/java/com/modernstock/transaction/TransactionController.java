@@ -56,7 +56,7 @@ public class TransactionController {
                     + "from/to are document dates. Payments taken at the POS for a sale paid in full are part of that sale.")
     @GetMapping("/transactions")
     @PreAuthorize("isAuthenticated()")
-    public PageResponse<TransactionRow> list(@RequestParam Side side, @RequestParam(required = false) String view,
+    public PageResponse<TransactionRow> transactions(@RequestParam Side side, @RequestParam(required = false) String view,
                                              @RequestParam(required = false) Long partyId, @RequestParam(required = false) String status,
                                              @RequestParam(required = false) String q, @RequestParam(required = false) Long branchId,
                                              @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
