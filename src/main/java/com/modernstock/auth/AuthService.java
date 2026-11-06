@@ -18,6 +18,7 @@ import com.modernstock.common.Phones;
 import com.modernstock.common.Tokens;
 import com.modernstock.config.AppProperties;
 import com.modernstock.member.RoleRepository;
+import com.modernstock.notification.EmailComposer;
 import com.modernstock.notification.MailService;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -95,6 +96,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwt;
     private final MailService mail;
+    private final EmailComposer emails;
     private final Messages messages;
     private final AppProperties props;
     private final BusinessMemberRepository members;
@@ -235,7 +237,7 @@ public class AuthService {
                 .filter(u -> u.getStatus() == User.Status.ACTIVE && u.getEmailVerifiedAt() != null)
                 .map(u -> {
                     String link = resetLink(u, Duration.ofHours(1));
-                    mail.send(u.getEmail(), "Reset your ModernStock password", "Open this link within 1 hour: " + link);
+                    mail.send(u.getEmail(), emails.reset(u.getLocale(), u.getFullName(), link));
                     return link;
                 })
                 .orElse(null);
@@ -274,11 +276,12 @@ public class AuthService {
     private String sendVerification(User u) {
         String link = props.webAppUrl() + "/verify-email?token="
                 + createToken(u, UserToken.Type.VERIFY_EMAIL, Duration.ofHours(24));
-        mail.send(u.getEmail(), "Verify your ModernStock email", "Open this link within 24 hours: " + link);
+        mail.send(u.getEmail(), emails.verify(u.getLocale(), u.getFullName(), link));
         return props.devLinks() ? link : null;
     }
 
     private String createToken(User u, UserToken.Type type, Duration validFor) {
+        userTokens.retireOpen(u.getId(), type, Instant.now());   // a new link replaces the earlier ones
         String raw = Tokens.random();
         UserToken t = new UserToken();
         t.setUserId(u.getId());
