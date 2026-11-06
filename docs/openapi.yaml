@@ -1991,6 +1991,31 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /supplier-payments/{id}/void:
+    post:
+      tags:
+      - Purchases
+      summary: Void a supplier payment
+      description: The bills it paid are open again by the same amounts.
+      operationId: voidSupplierPayment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /supplier-credits:
     get:
       tags:
@@ -2071,6 +2096,32 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /supplier-credits/{id}/void:
+    post:
+      tags:
+      - Purchase returns and supplier credits
+      summary: Void a supplier credit written by hand
+      description: "Credit used on bills is taken off them. 422 VOID_CREDIT_FROM_RETURN\
+        \ for one made by a return (void the return), VOID_CREDIT_REFUNDED when refunded."
+      operationId: voidCredit
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierCreditResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /supplier-credits/{id}/refund:
     post:
       tags:
@@ -2131,6 +2182,29 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /stock/reorder-points/recalculate:
+    post:
+      tags:
+      - Stock
+      summary: Recalculate reorder points now
+      description: "PLAIN.md 11.9: done every morning at 06:50 for every business;\
+        \ this runs it now for the open one (after an import or a big change). Returns\
+        \ how many products have a point from their sales history."
+      operationId: recalculateReorderPoints
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  format: int32
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /stock-counts:
     get:
       tags:
@@ -2150,6 +2224,23 @@ paths:
           - SUBMITTED
           - POSTED
           - VOID
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
       - name: page
         in: query
         description: Zero-based page index (0..N)
@@ -2204,6 +2295,32 @@ paths:
       responses:
         "201":
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /stock-counts/{id}/void:
+    post:
+      tags:
+      - Stock counts
+      summary: Void a posted count
+      description: "Owner or Manager: every difference is reversed, back into the\
+        \ same batches, while what it added is still there (422 VOID_STOCK_GONE)."
+      operationId: voidStockCount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -2417,6 +2534,33 @@ paths:
       responses:
         "201":
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /sales-returns/{id}/void:
+    post:
+      tags:
+      - Returns and credit notes
+      summary: Void a posted return
+      description: Good items leave stock again while they are still there (422 VOID_STOCK_GONE)
+        and the credit note is voided; credit used on invoices is taken off them.
+        422 VOID_CREDIT_REFUNDED when the money was given back.
+      operationId: voidSalesReturn
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -2970,6 +3114,33 @@ paths:
       responses:
         "201":
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseReturnResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /purchase-returns/{id}/void:
+    post:
+      tags:
+      - Purchase returns and supplier credits
+      summary: Void a posted purchase return
+      description: The goods come back into the batches they left and the supplier
+        credit is voided; credit used on bills is taken off them. 422 VOID_CREDIT_REFUNDED
+        when the supplier refunded it.
+      operationId: voidReturn
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -3537,6 +3708,74 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /payments-received/{id}/void:
+    post:
+      tags:
+      - POS
+      summary: Void a payment received
+      description: Owner or Manager. The invoices it paid are open again. A POS sale
+        paid in full is voided as a sale (422 VOID_PAYMENT_OF_SALE); a refund goes
+        with its credit note.
+      operationId: voidPaymentReceived
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /notifications/{id}/read:
+    post:
+      tags:
+      - Notifications
+      summary: Mark one notification read
+      operationId: read
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notifications"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /notifications/read:
+    post:
+      tags:
+      - Notifications
+      summary: Mark all my notifications read
+      operationId: readAll
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notifications"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /members/{id}/reset-link:
     post:
       tags:
@@ -3753,6 +3992,34 @@ paths:
                 $ref: "#/components/schemas/MyBusinessResponse"
       security:
       - bearer: []
+  /invoices/{id}/void:
+    post:
+      tags:
+      - POS
+      summary: Void an invoice
+      description: "Owner or Manager. Voids its delivery too: the goods go back into\
+        \ the same batches and a sales order counts them as not delivered. Only while\
+        \ nothing paid it and nothing was returned (422 VOID_INVOICE_PAID, VOID_HAS_RETURNS,\
+        \ VOID_HAS_DEBIT_NOTES). A debit note uses /debit-notes/{id}/void."
+      operationId: voidInvoice
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /import/products:
     post:
       tags:
@@ -3814,6 +4081,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportResult"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /goods-receipts/{id}/void:
+    post:
+      tags:
+      - Purchases
+      summary: Void a goods receipt
+      description: "Owner or Manager. Voids its bill too: the goods leave the same\
+        \ batches while they are still there (422 VOID_STOCK_GONE), the average cost\
+        \ loses them, and the order counts them as not received. 422 VOID_BILL_PAID\
+        \ while the bill has payments, VOID_HAS_RETURNS after a purchase return."
+      operationId: voidGoodsReceipt
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoodsReceiptResponse"
       security:
       - bearer: []
         business: []
@@ -4323,6 +4618,32 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /credit-notes/{id}/void:
+    post:
+      tags:
+      - Returns and credit notes
+      summary: Void a credit note written by hand
+      description: "Credit used on invoices is taken off them. 422 VOID_CREDIT_FROM_RETURN\
+        \ for one made by a return (void the return), VOID_CREDIT_REFUNDED when refunded."
+      operationId: voidCreditNote
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditNoteResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /credit-notes/{id}/refund:
     post:
       tags:
@@ -4762,6 +5083,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WarehouseResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /bills/{id}/void:
+    post:
+      tags:
+      - Purchases
+      summary: Void a bill
+      description: "A bill always comes from a goods receipt: both are voided (see\
+        \ the receipt void)."
+      operationId: voidBill
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillResponse"
       security:
       - bearer: []
         business: []
@@ -5318,6 +5665,162 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
       security: []
+  /attachments/{type}/{id}/photo:
+    get:
+      tags:
+      - Attachments
+      summary: A document's photo
+      description: "Private, not cached; 404 without one."
+      operationId: photo
+      parameters:
+      - name: type
+        in: path
+        description: "The document's path: purchase-orders, goods-receipts, purchase-returns,\
+          \ supplier-credits, supplier-payments, quotations, sales-orders, sales-receipts,\
+          \ invoices, deliveries, payments-received, sales-returns, credit-notes,\
+          \ adjustments, transfers or stock-counts"
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    post:
+      tags:
+      - Attachments
+      summary: Attach a photo to a document
+      description: "JPEG, PNG or WebP up to 2 MB; replaces the one before."
+      operationId: attach
+      parameters:
+      - name: type
+        in: path
+        description: "The document's path: purchase-orders, goods-receipts, purchase-returns,\
+          \ supplier-credits, supplier-payments, quotations, sales-orders, sales-receipts,\
+          \ invoices, deliveries, payments-received, sales-returns, credit-notes,\
+          \ adjustments, transfers or stock-counts"
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentInfo"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+    delete:
+      tags:
+      - Attachments
+      summary: Remove a document's photo
+      operationId: remove
+      parameters:
+      - name: type
+        in: path
+        description: "The document's path: purchase-orders, goods-receipts, purchase-returns,\
+          \ supplier-credits, supplier-payments, quotations, sales-orders, sales-receipts,\
+          \ invoices, deliveries, payments-received, sales-returns, credit-notes,\
+          \ adjustments, transfers or stock-counts"
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentInfo"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /alerts/read:
+    post:
+      tags:
+      - Reports
+      summary: Mark alerts read
+      description: "One kind, or all shown now without kind. A kind is unread again\
+        \ when its count grows; it leaves the list by itself once fixed. total (the\
+        \ badge) counts only unread ones."
+      operationId: markAlertsRead
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - PAYMENT_DUE
+          - EXPIRED
+          - OVERDUE_BILLS
+          - TRIAL_ENDING
+          - LOW_STOCK
+          - EXPIRING_1
+          - OVERDUE_INVOICES
+          - TRANSFERS_LATE
+          - APPROVALS
+          - TO_RECEIVE
+          - TRANSFER_REQUESTS
+          - COUNTS_OPEN
+          - COUNTS_TO_APPROVE
+          - RETURNS_TO_APPROVE
+          - PURCHASE_RETURNS_TO_APPROVE
+          - RENEWAL_SOON
+          - EXPIRING_2
+          - EXPIRING_3
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alerts"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /admin/transfers/{id}/reject:
     post:
       tags:
@@ -5893,6 +6396,186 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /transactions:
+    get:
+      tags:
+      - Transactions
+      summary: "Every document of one side, newest first"
+      description: "Only the kinds the member may open, from the branches they see.\
+        \ view narrows it to one kind: customers quotations, sales-orders, deliveries,\
+        \ invoices, sales-receipts, payments, returns, credits; suppliers purchase-orders,\
+        \ goods-receipts, bills, payments, returns, credits. q matches the number\
+        \ or the party's name; from/to are document dates. Payments taken at the POS\
+        \ for a sale paid in full are part of that sale."
+      operationId: transactions
+      parameters:
+      - name: side
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - CUSTOMER
+          - SUPPLIER
+      - name: view
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: partyId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: branchId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseTransactionRow"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /transactions/views:
+    get:
+      tags:
+      - Transactions
+      summary: The kinds of documents this member sees on a side
+      description: The values of ?view= for /transactions.
+      operationId: views
+      parameters:
+      - name: side
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - CUSTOMER
+          - SUPPLIER
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /suppliers/{id}/summary:
+    get:
+      tags:
+      - Transactions
+      - Suppliers
+      summary: A supplier's key amounts
+      description: "What is owed to them, the overdue part, bills this year, and per\
+        \ branch."
+      operationId: supplierSummary
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartySummary"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /suppliers/{id}/statement:
+    get:
+      tags:
+      - Transactions
+      - Suppliers
+      summary: A supplier's statement
+      description: "Like /reports/statement, for whoever sees suppliers. Default:\
+        \ the last 90 days."
+      operationId: supplierStatement
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statement"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /supplier-credits/{id}:
     get:
       tags:
@@ -6030,8 +6713,9 @@ paths:
       tags:
       - Stock
       summary: Stock on hand per product
-      description: "Base units, summed over the branches you see. q matches name,\
-        \ SKU or barcode."
+      description: "Base units, summed over the branches you see, or in one warehouse\
+        \ (warehouseId, PLAIN.md 12.2 stock per warehouse). q matches name, SKU or\
+        \ barcode."
       operationId: stockLevels
       parameters:
       - name: q
@@ -6040,6 +6724,12 @@ paths:
         schema:
           type: string
       - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: warehouseId
         in: query
         required: false
         schema:
@@ -6177,7 +6867,9 @@ paths:
       tags:
       - Stock
       summary: Batches expiring soon
-      description: "Batches in stock that expire within N days, expired ones included."
+      description: "Batches in stock that expire within N days, expired ones included;\
+        \ in one warehouse with warehouseId. A large N (3650) lists every batch with\
+        \ an expiry date."
       operationId: expiringBatches
       parameters:
       - name: expiringInDays
@@ -6189,6 +6881,12 @@ paths:
           default: 30
         example: 30
       - name: productId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: warehouseId
         in: query
         required: false
         schema:
@@ -7042,6 +7740,59 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /payments/{id}:
+    get:
+      tags:
+      - Transactions
+      summary: One payment
+      description: "Received from a customer (sale:create) or paid to a supplier (bill:manage),\
+        \ with what it paid."
+      operationId: payment
+      parameters:
+      - name: id
+        in: path
+        description: Payment ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /notifications:
+    get:
+      tags:
+      - Notifications
+      summary: My notifications
+      description: "Newest first, with how many are not read yet."
+      operationId: mine
+      parameters:
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notifications"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /members:
     get:
       tags:
@@ -7405,6 +8156,72 @@ paths:
       - bearer: []
         business: []
         branch: []
+  /customers/{id}/summary:
+    get:
+      tags:
+      - Transactions
+      - Customers
+      summary: A customer's key amounts
+      description: "What they owe, the overdue part, sales this year, and the balance\
+        \ per branch."
+      operationId: customerSummary
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartySummary"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /customers/{id}/statement:
+    get:
+      tags:
+      - Transactions
+      - Customers
+      summary: A customer's statement
+      description: "Like /reports/statement, for whoever sees customers. Default:\
+        \ the last 90 days."
+      operationId: customerStatement
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statement"
+      security:
+      - bearer: []
+        business: []
+        branch: []
   /credit-notes/{id}:
     get:
       tags:
@@ -7436,6 +8253,26 @@ paths:
       description: "Cashiers see their own; cash_shift:all sees all, with differences."
       operationId: listCashShifts
       parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OPEN
+          - CLOSED
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
       - name: page
         in: query
         description: Zero-based page index (0..N)
@@ -7707,6 +8544,39 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/InvoiceView"
+      security:
+      - bearer: []
+        business: []
+        branch: []
+  /attachments/{type}/{id}:
+    get:
+      tags:
+      - Attachments
+      summary: Whether a document has a photo
+      operationId: attachment
+      parameters:
+      - name: type
+        in: path
+        description: "The document's path: purchase-orders, goods-receipts, purchase-returns,\
+          \ supplier-credits, supplier-payments, quotations, sales-orders, sales-receipts,\
+          \ invoices, deliveries, payments-received, sales-returns, credit-notes,\
+          \ adjustments, transfers or stock-counts"
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentInfo"
       security:
       - bearer: []
         business: []
@@ -8291,6 +9161,9 @@ components:
         balance:
           type: number
           description: "What you owe this supplier now, USD"
+        overdue:
+          type: number
+          description: The part of it past its due date
     CountedLine:
       type: object
       properties:
@@ -9277,6 +10150,9 @@ components:
         balance:
           type: number
           description: "What the customer owes now, USD (negative = deposit)"
+        overdue:
+          type: number
+          description: The part of it past its due date
     UpdateBusinessRequest:
       type: object
       properties:
@@ -11168,6 +12044,38 @@ components:
       required:
       - customerId
       - payment
+    NotificationRow:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          description: "APPROVAL_ADJUSTMENT, APPROVAL_STOCK_COUNT, APPROVAL_SALES_RETURN,\
+            \ APPROVAL_PURCHASE_RETURN, TRANSFER_SENT, SHIFT_SHORT, SALE_VOIDED, STOCK_OUT"
+        params:
+          type: object
+          additionalProperties: {}
+          description: "Values for the text, e.g. number, amount, product"
+        link:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        read:
+          type: boolean
+    Notifications:
+      type: object
+      properties:
+        unread:
+          type: integer
+          format: int64
+          description: "Not read yet, of all of them"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationRow"
     LinkResponse:
       type: object
       properties:
@@ -11320,6 +12228,75 @@ components:
       required:
       - businessType
       - nameEn
+    InvoiceResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        type:
+          type: string
+          enum:
+          - STANDARD
+          - TAX
+          - DEBIT_NOTE
+        branchId:
+          type: integer
+          format: int64
+        deliveryId:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        invoiceDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        exchangeRate:
+          type: number
+        subtotal:
+          type: number
+        discount:
+          type: number
+        vat:
+          type: number
+        total:
+          type: number
+        totalKhr:
+          type: number
+        paidAmount:
+          type: number
+        balance:
+          type: number
+        status:
+          type: string
+          enum:
+          - UNPAID
+          - PARTLY_PAID
+          - PAID
+          - VOID
+        overdue:
+          type: boolean
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLineResponse"
+        note:
+          type: string
+          description: "A debit note: why the customer owes more"
+        relatedInvoiceId:
+          type: integer
+          format: int64
+          description: "A debit note: the invoice it adds to"
+        relatedInvoiceNumber:
+          type: string
     ProductImport:
       type: object
       properties:
@@ -11586,75 +12563,6 @@ components:
       - amount
       - customerId
       - reason
-    InvoiceResponse:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        number:
-          type: string
-        type:
-          type: string
-          enum:
-          - STANDARD
-          - TAX
-          - DEBIT_NOTE
-        branchId:
-          type: integer
-          format: int64
-        deliveryId:
-          type: integer
-          format: int64
-        customerId:
-          type: integer
-          format: int64
-        customerName:
-          type: string
-        invoiceDate:
-          type: string
-          format: date
-        dueDate:
-          type: string
-          format: date
-        exchangeRate:
-          type: number
-        subtotal:
-          type: number
-        discount:
-          type: number
-        vat:
-          type: number
-        total:
-          type: number
-        totalKhr:
-          type: number
-        paidAmount:
-          type: number
-        balance:
-          type: number
-        status:
-          type: string
-          enum:
-          - UNPAID
-          - PARTLY_PAID
-          - PAID
-          - VOID
-        overdue:
-          type: boolean
-        lines:
-          type: array
-          items:
-            $ref: "#/components/schemas/SaleLineResponse"
-        note:
-          type: string
-          description: "A debit note: why the customer owes more"
-        relatedInvoiceId:
-          type: integer
-          format: int64
-          description: "A debit note: the invoice it adds to"
-        relatedInvoiceNumber:
-          type: string
     CreditNoteRequest:
       type: object
       properties:
@@ -12305,6 +13213,63 @@ components:
       required:
       - login
       - password
+    AttachmentInfo:
+      type: object
+      properties:
+        hasPhoto:
+          type: boolean
+    Alert:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - PAYMENT_DUE
+          - EXPIRED
+          - OVERDUE_BILLS
+          - TRIAL_ENDING
+          - LOW_STOCK
+          - EXPIRING_1
+          - OVERDUE_INVOICES
+          - TRANSFERS_LATE
+          - APPROVALS
+          - TO_RECEIVE
+          - TRANSFER_REQUESTS
+          - COUNTS_OPEN
+          - COUNTS_TO_APPROVE
+          - RETURNS_TO_APPROVE
+          - PURCHASE_RETURNS_TO_APPROVE
+          - RENEWAL_SOON
+          - EXPIRING_2
+          - EXPIRING_3
+        level:
+          type: string
+          enum:
+          - DANGER
+          - WARN
+          - INFO
+        count:
+          type: integer
+          format: int64
+        days:
+          type: integer
+          format: int32
+          description: "EXPIRING_1..3: the window in days; TRANSFERS_LATE: days in\
+            \ transit"
+        read:
+          type: boolean
+          description: The member marked it read and nothing was added since
+    Alerts:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: "For the badge: the counts of the alerts not read yet"
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alert"
     RejectRequest:
       type: object
       properties:
@@ -12615,6 +13580,64 @@ components:
         totalPages:
           type: integer
           format: int32
+    PageResponseTransactionRow:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionRow"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    TransactionRow:
+      type: object
+      properties:
+        type:
+          type: string
+          description: "QUOTATION, SALES_ORDER, DELIVERY, INVOICE, DEBIT_NOTE, SALES_RECEIPT,\
+            \ PAYMENT_RECEIVED, REFUND, SALES_RETURN, CREDIT_NOTE; PURCHASE_ORDER,\
+            \ GOODS_RECEIPT, BILL, SUPPLIER_PAYMENT, PURCHASE_RETURN, SUPPLIER_CREDIT"
+        id:
+          type: integer
+          format: int64
+        number:
+          type: string
+        date:
+          type: string
+          format: date
+        partyId:
+          type: integer
+          format: int64
+        partyName:
+          type: string
+        branchId:
+          type: integer
+          format: int64
+        total:
+          type: number
+        balance:
+          type: number
+          description: "Still to pay (invoices, bills) or to use (credits); empty\
+            \ for the rest"
+        status:
+          type: string
+        dueDate:
+          type: string
+          format: date
+          description: "Due date (invoices, bills), valid until (quotations), delivery\
+            \ or expected date (orders)"
+        overdue:
+          type: boolean
     PageResponseSupplierResponse:
       type: object
       properties:
@@ -12634,6 +13657,97 @@ components:
         totalPages:
           type: integer
           format: int32
+    BranchBalance:
+      type: object
+      properties:
+        branchId:
+          type: integer
+          format: int64
+        branchName:
+          type: string
+        balance:
+          type: number
+    PartySummary:
+      type: object
+      properties:
+        side:
+          type: string
+          enum:
+          - CUSTOMER
+          - SUPPLIER
+        partyId:
+          type: integer
+          format: int64
+        balance:
+          type: number
+          description: "Owed now, USD: what the customer owes, or what is owed to\
+            \ the supplier"
+        overdue:
+          type: number
+          description: The part of it past its due date
+        overdueCount:
+          type: integer
+          format: int32
+        thisYear:
+          type: number
+          description: Sales (customer) or bills (supplier) since 1 January
+        branches:
+          type: array
+          description: Open documents and unused money per branch; the opening balance
+            is not in a branch
+          items:
+            $ref: "#/components/schemas/BranchBalance"
+        openingBalance:
+          type: number
+    Statement:
+      type: object
+      properties:
+        party:
+          type: string
+          enum:
+          - CUSTOMER
+          - SUPPLIER
+        partyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        phone:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        opening:
+          type: number
+        debits:
+          type: number
+        credits:
+          type: number
+        closing:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementLine"
+    StatementLine:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+        number:
+          type: string
+        debit:
+          type: number
+        credit:
+          type: number
+        balance:
+          type: number
     PageResponsePaymentResponse:
       type: object
       properties:
@@ -13130,55 +14244,6 @@ components:
           type: string
         factor:
           type: number
-    Statement:
-      type: object
-      properties:
-        party:
-          type: string
-          enum:
-          - CUSTOMER
-          - SUPPLIER
-        partyId:
-          type: integer
-          format: int64
-        name:
-          type: string
-        phone:
-          type: string
-        from:
-          type: string
-          format: date
-        to:
-          type: string
-          format: date
-        opening:
-          type: number
-        debits:
-          type: number
-        credits:
-          type: number
-        closing:
-          type: number
-        lines:
-          type: array
-          items:
-            $ref: "#/components/schemas/StatementLine"
-    StatementLine:
-      type: object
-      properties:
-        date:
-          type: string
-          format: date
-        type:
-          type: string
-        number:
-          type: string
-        debit:
-          type: number
-        credit:
-          type: number
-        balance:
-          type: number
     SlowReport:
       type: object
       properties:
@@ -13314,8 +14379,11 @@ components:
           type: number
         reorderLevel:
           type: number
+          description: "The reorder point used: from sales history (basis SALES),\
+            \ else the manual level"
         soldPerDay:
           type: number
+          description: Average daily sales (ADS) over the last 30 days
         leadTimeDays:
           type: integer
           format: int32
@@ -13325,6 +14393,19 @@ components:
           type: number
         suggestedValue:
           type: number
+        basis:
+          type: string
+          description: "SALES: ADS × lead time + safety stock; MANUAL: not enough\
+            \ sales history yet"
+        safetyStock:
+          type: number
+          description: (max daily sales × max lead time) − (ADS × average lead time);
+            null on MANUAL
+        maxDailySales:
+          type: number
+        manualLevel:
+          type: number
+          description: Unused (kept for older clients)
     PurchaseReport:
       type: object
       properties:
@@ -14407,54 +15488,6 @@ components:
         totalPages:
           type: integer
           format: int32
-    Alert:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum:
-          - PAYMENT_DUE
-          - EXPIRED
-          - OVERDUE_BILLS
-          - TRIAL_ENDING
-          - LOW_STOCK
-          - EXPIRING_1
-          - OVERDUE_INVOICES
-          - TRANSFERS_LATE
-          - APPROVALS
-          - TO_RECEIVE
-          - TRANSFER_REQUESTS
-          - COUNTS_OPEN
-          - COUNTS_TO_APPROVE
-          - RETURNS_TO_APPROVE
-          - PURCHASE_RETURNS_TO_APPROVE
-          - RENEWAL_SOON
-          - EXPIRING_2
-          - EXPIRING_3
-        level:
-          type: string
-          enum:
-          - DANGER
-          - WARN
-          - INFO
-        count:
-          type: integer
-          format: int64
-        days:
-          type: integer
-          format: int32
-          description: "EXPIRING_1..3: the window in days; TRANSFERS_LATE: days in\
-            \ transit"
-    Alerts:
-      type: object
-      properties:
-        total:
-          type: integer
-          format: int64
-        alerts:
-          type: array
-          items:
-            $ref: "#/components/schemas/Alert"
     TransferRow:
       type: object
       properties:
