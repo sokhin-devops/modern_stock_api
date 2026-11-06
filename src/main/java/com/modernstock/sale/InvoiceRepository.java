@@ -26,6 +26,8 @@ public interface InvoiceRepository extends TenantRepository<Invoice> {
 
     Optional<Invoice> findByDeliveryId(Long deliveryId);
 
+    boolean existsByRelatedInvoiceIdAndStatusNot(Long relatedInvoiceId, Invoice.Status status);
+
     @Override
     default String entityName() {
         return "Invoice";
