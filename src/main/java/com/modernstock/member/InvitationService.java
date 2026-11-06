@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ import com.modernstock.common.ApiException;
 import com.modernstock.common.Phones;
 import com.modernstock.common.Tokens;
 import com.modernstock.config.AppProperties;
+import com.modernstock.notification.EmailComposer;
 import com.modernstock.notification.MailService;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -91,6 +93,7 @@ public class InvitationService {
     private final PlatformSettings platformSettings;
     private final PasswordEncoder passwordEncoder;
     private final MailService mail;
+    private final EmailComposer emails;
     private final AppProperties props;
     private final JdbcTemplate jdbc;
 
@@ -115,7 +118,7 @@ public class InvitationService {
         activity.record("MEMBER_INVITED", "INVITATION", inv.getId(), inv.getEmail(), null, null, ActivityService.values(
                 "role", role.getNameEn(), "branch", req.branchId() == null ? null : branchName(req.branchId())));
         if (inv.getMethod() == Invitation.Method.EMAIL) {
-            mail.send(inv.getEmail(), "You are invited to ModernStock", "Open this link within 7 days: " + link);
+            emailInvitation(inv, link);
         }
         return toResponse(inv, link);
     }
@@ -134,7 +137,7 @@ public class InvitationService {
         }
         String link = renew(inv);
         if (inv.getMethod() == Invitation.Method.EMAIL) {
-            mail.send(inv.getEmail(), "You are invited to ModernStock", "Open this link within 7 days: " + link);
+            emailInvitation(inv, link);
         }
         return toResponse(inv, link);
     }
@@ -310,6 +313,15 @@ public class InvitationService {
 
     private static Invitation.Status shownStatus(Invitation inv) {
         return inv.getStatus() == Invitation.Status.PENDING && !inv.isOpen() ? Invitation.Status.EXPIRED : inv.getStatus();
+    }
+
+    /** In the inviter's language, with the business name in that language when it has one. */
+    private void emailInvitation(Invitation inv, String link) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+        String inviter = users.findById(inv.getInvitedBy()).map(User::getFullName).orElse("ModernStock");
+        Business b = businesses.findById(inv.getBusinessId()).orElseThrow();
+        String business = "km".equals(language) && b.getNameKm() != null && !b.getNameKm().isBlank() ? b.getNameKm() : b.getNameEn();
+        mail.send(inv.getEmail(), emails.invitation(language, inviter, business, link));
     }
 
     private InvitationResponse toResponse(Invitation i, String link) {

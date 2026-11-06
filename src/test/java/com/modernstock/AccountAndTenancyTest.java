@@ -25,7 +25,14 @@ class AccountAndTenancyTest extends ApiTest {
         assertThat(early.status()).isEqualTo(403);
         assertThat(early.code()).isEqualTo("EMAIL_NOT_VERIFIED");
 
-        String token = signUp.body().get("devLink").asText().replaceAll(".*token=", "");
+        // asking for a new link retires the first one: only the newest link works
+        String firstLink = signUp.body().get("devLink").asText().replaceAll(".*token=", "");
+        Res resent = ok(call(HttpMethod.POST, "/auth/resend-verification", Map.of("email", email), null, null, null, null));
+        String token = resent.body().get("devLink").asText().replaceAll(".*token=", "");
+        assertThat(token).isNotEqualTo(firstLink);
+        assertThat(call(HttpMethod.POST, "/auth/verify-email", Map.of("token", firstLink), null, null, null, null).code())
+                .isEqualTo("INVALID_OR_EXPIRED_LINK");
+
         ok(call(HttpMethod.POST, "/auth/verify-email", Map.of("token", token), null, null, null, null));
         assertThat(call(HttpMethod.POST, "/auth/verify-email", Map.of("token", token), null, null, null, null).code())
                 .isEqualTo("INVALID_OR_EXPIRED_LINK");
