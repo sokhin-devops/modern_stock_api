@@ -1,6 +1,6 @@
 # The API image (doc/plain/DevSecOps.md C2). CI builds and tests the jar first (./mvnw verify), so this only packages it.
 # On your PC:  ./mvnw package -DskipTests && docker build -t modern-stock-api .
-FROM eclipse-temurin:21-jre-noble
+FROM eclipse-temurin:24-jre-noble
 
 # Ubuntu's security fixes published since the base image was built, then the user the API runs as
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
