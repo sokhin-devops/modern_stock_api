@@ -162,6 +162,7 @@ The tests start the real API against a real PostgreSQL (embedded, no Docker need
 | `MembersAndPermissionsTest` | Joining by link without email, cashier limits (no product edits, no voids, credit limit), reset links, removal takes effect at once, last Owner |
 | `ConcurrentCheckoutTest` | **Two cashiers sell the last unit at the same moment: one gets 201, the other 422** |
 | `ExpensesCountsReportsTest` | Starter expense categories, an expense in riel lowers the net profit, the sales report, voiding an expense; a stock count posts only the counted differences; Telegram settings are kept and the test message needs a bot |
+| `VoidsAndNewScreensTest` | Voids give stock, average cost and debts back (refused while paid or returned), a count voided back, the Transactions list and a customer's page, a photo on any document, the reorder point from sales history used by every low-stock check, and a cashier's request telling the Owner |
 | `OpenApiExportTest` | The Swagger document is complete, with unique operation IDs. It writes [docs/openapi.yaml](docs/openapi.yaml) |
 | `ClientIpFilterTest` | Behind Cloudflare the rate limits count the visitor (`CF-Connecting-IP`), not the proxy, and a faked `X-Forwarded-For` changes nothing |
 

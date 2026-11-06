@@ -41,11 +41,21 @@ public class InAppNotifications {
             case SALES_RETURN -> List.of("sale:void");
             case PURCHASE_RETURN -> List.of("bill:manage");
         };
+        // the document itself: its own page (returns) or its list with it open (adjustments, counts)
+        String table = switch (e.kind()) {
+            case ADJUSTMENT -> "stock_adjustments";
+            case STOCK_COUNT -> "stock_counts";
+            case SALES_RETURN -> "sales_returns";
+            case PURCHASE_RETURN -> "purchase_returns";
+        };
+        Long id = jdbc.queryForList("select id from " + table + " where business_id = :business and number = :number",
+                new MapSqlParameterSource("business", e.businessId()).addValue("number", e.number()), Long.class)
+                .stream().findFirst().orElse(null);
         String link = switch (e.kind()) {
-            case ADJUSTMENT -> "/inventory/adjustments";
-            case STOCK_COUNT -> "/inventory/stock-counts";
-            case SALES_RETURN -> "/customers/transactions?tab=returns";
-            case PURCHASE_RETURN -> "/suppliers/transactions?tab=returns";
+            case ADJUSTMENT -> "/inventory/adjustments" + (id == null ? "" : "?open=" + id);
+            case STOCK_COUNT -> "/inventory/stock-counts" + (id == null ? "" : "?open=" + id);
+            case SALES_RETURN -> id == null ? "/customers/transactions?tab=returns" : "/customers/transactions/returns/" + id;
+            case PURCHASE_RETURN -> id == null ? "/suppliers/transactions?tab=returns" : "/suppliers/transactions/returns/" + id;
         };
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("number", e.number());
