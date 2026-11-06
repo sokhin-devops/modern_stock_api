@@ -27,6 +27,8 @@ public interface PurchaseReturnRepository extends TenantRepository<PurchaseRetur
             """)
     BigDecimal returnedQty(Long itemId);
 
+    boolean existsByGoodsReceiptIdAndStatusIn(Long goodsReceiptId, Collection<PurchaseReturn.Status> statuses);
+
     @Override
     default String entityName() {
         return "Purchase return";

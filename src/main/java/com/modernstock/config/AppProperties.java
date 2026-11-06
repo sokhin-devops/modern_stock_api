@@ -12,7 +12,8 @@ public record AppProperties(
         boolean devLinks,
         boolean demoData,
         Billing billing,
-        Telegram telegram) {
+        Telegram telegram,
+        Mail mail) {
 
     public record Jwt(String secret, int accessTokenMinutes, int refreshTokenDays) {
     }
@@ -40,5 +41,9 @@ public record AppProperties(
      */
     public record Telegram(String botToken, String botUsername, String webhookUrl, String webhookSecret, boolean polling,
                            String teamChatId) {
+    }
+
+    /** The email API (Resend) and the sender; empty apiKey = emails are not sent (MailService). */
+    public record Mail(String apiKey, String from) {
     }
 }

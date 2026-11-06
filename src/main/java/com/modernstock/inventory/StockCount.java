@@ -57,4 +57,8 @@ public class StockCount extends TenantEntity {
     @JoinColumn(name = "count_id", nullable = false)
     @OrderBy("id")
     private List<StockCountItem> items = new ArrayList<>();
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

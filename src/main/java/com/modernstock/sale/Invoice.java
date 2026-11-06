@@ -1,5 +1,6 @@
 package com.modernstock.sale;
 
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -70,4 +71,8 @@ public class Invoice extends TenantEntity {
         status = paidAmount.compareTo(total) >= 0 ? Status.PAID
                 : paidAmount.signum() > 0 ? Status.PARTLY_PAID : Status.UNPAID;
     }
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

@@ -26,6 +26,8 @@ public interface SalesReturnRepository extends TenantRepository<SalesReturn> {
             """)
     BigDecimal returnedQty(Long saleItemId);
 
+    boolean existsByInvoiceIdAndStatusIn(Long invoiceId, Collection<SalesReturn.Status> statuses);
+
     @Override
     default String entityName() {
         return "Sales return";

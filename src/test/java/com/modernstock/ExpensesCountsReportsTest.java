@@ -82,9 +82,10 @@ class ExpensesCountsReportsTest extends ApiTest {
     @Test
     void telegramSettingsAreKeptAndTestNeedsABot() {
         Shop shop = newShop();
+        // a chat is connected only through the bot with a one-time code: a chat ID sent here is ignored
         Res saved = ok(put("/business/telegram", Map.of("chatId", "-100123", "dailySummary", true, "lowStockAlerts", false,
                 "expiryAlerts", true), shop));
-        assertThat(saved.at("/chatId").asText()).isEqualTo("-100123");
+        assertThat(saved.at("/connected").asBoolean()).isFalse();
         assertThat(saved.at("/lowStockAlerts").asBoolean()).isFalse();
         assertThat(saved.at("/botConfigured").asBoolean()).isFalse();
         assertThat(post("/business/telegram/test", null, shop).status()).isEqualTo(422);

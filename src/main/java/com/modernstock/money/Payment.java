@@ -65,4 +65,8 @@ public class Payment extends TenantEntity {
     @Column(nullable = false)
     private Status status = Status.POSTED;
     private String note;
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

@@ -266,12 +266,10 @@ public class AdminManageController {
 
     @Operation(summary = "A transfer's screenshot")
     @GetMapping("/transfers/{id}/proof")
-    public ResponseEntity<Resource> transferProof(@PathVariable Long id) {
+    public ResponseEntity<Resource> adminTransferProof(@PathVariable Long id) {
         BillingPayment p = payments.findById(id).filter(x -> BillingService.BANK_TRANSFER.equals(x.getGateway()))
                 .orElseThrow(() -> ApiException.notFound("bank transfer"));
-        Resource body = p.getProofPath() == null ? null
-                : files.resolve(p.getProofPath()).filter(java.nio.file.Files::isRegularFile)
-                .map(path -> (Resource) new org.springframework.core.io.FileSystemResource(path)).orElse(null);
+        Resource body = files.load(p.getProofPath()).orElse(null);
         if (body == null) {
             return ResponseEntity.notFound().build();
         }

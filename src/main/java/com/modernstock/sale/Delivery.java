@@ -38,4 +38,8 @@ public class Delivery extends TenantEntity {
     private String note;
     /** The sales order this delivery fills, if any. */
     private Long salesOrderId;
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

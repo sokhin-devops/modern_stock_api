@@ -79,7 +79,7 @@ public class RateLimiter {
         }
     }
 
-    /** The caller's address (behind Nginx in production: from X-Forwarded-For, see server.forward-headers-strategy). */
+    /** The caller's address (behind Cloudflare in the cloud: from CF-Connecting-IP, see ClientIpFilter). */
     public static String ip(HttpServletRequest request) {
         return request.getRemoteAddr();
     }
