@@ -32,4 +32,11 @@ public class DashboardController {
     public Alerts getAlerts() {
         return alerts.alerts();
     }
+
+    @Operation(summary = "Mark alerts read", description = "One kind, or all shown now without kind. A kind is unread again when "
+            + "its count grows; it leaves the list by itself once fixed. total (the badge) counts only unread ones.")
+    @org.springframework.web.bind.annotation.PostMapping("/alerts/read")
+    public Alerts markAlertsRead(@org.springframework.web.bind.annotation.RequestParam(required = false) AlertService.Kind kind) {
+        return alerts.markRead(kind);
+    }
 }

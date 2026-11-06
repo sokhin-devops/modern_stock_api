@@ -151,9 +151,14 @@ public class CashShiftService {
 
     /** Cashiers see their own shifts; cash_shift:all sees every shift of the branches in view. */
     @Transactional(readOnly = true)
-    public PageResponse<CashShiftResponse> list(Pageable pageable) {
+    public PageResponse<CashShiftResponse> list(CashShift.Status status, java.time.LocalDate from, java.time.LocalDate to,
+                                                Pageable pageable) {
         Long cashier = BusinessContext.has("cash_shift:all") ? null : CurrentUser.id();
-        return PageResponse.of(shifts.search(scope.branchIds(), cashier, pageable), this::toResponse);
+        java.time.Instant start = (from == null ? java.time.LocalDate.of(2000, 1, 1) : from)
+                .atStartOfDay(com.modernstock.common.Dates.PHNOM_PENH).toInstant();
+        java.time.Instant end = (to == null ? java.time.LocalDate.of(2999, 1, 1) : to.plusDays(1))
+                .atStartOfDay(com.modernstock.common.Dates.PHNOM_PENH).toInstant();
+        return PageResponse.of(shifts.search(scope.branchIds(), cashier, status, start, end, pageable), this::toResponse);
     }
 
     @Transactional(readOnly = true)

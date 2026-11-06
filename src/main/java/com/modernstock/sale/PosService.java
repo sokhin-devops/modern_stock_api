@@ -404,7 +404,7 @@ public class PosService {
         return new InvoiceResponse(i.getId(), i.getNumber(), i.getType(), i.getBranchId(), i.getDeliveryId(),
                 i.getCustomerId(), customers.get(i.getCustomerId()).getName(), i.getInvoiceDate(), i.getDueDate(),
                 i.getExchangeRate(), i.getSubtotal(), i.getDiscount(), i.getVat(), i.getTotal(), i.getTotalKhr(),
-                i.getPaidAmount(), i.open(), i.getStatus(), overdue, lines, i.getNote(), i.getRelatedInvoiceId(),
+                i.getPaidAmount(), i.getStatus() == Invoice.Status.VOID ? java.math.BigDecimal.ZERO : i.open(), i.getStatus(), overdue, lines, i.getNote(), i.getRelatedInvoiceId(),
                 i.getRelatedInvoiceId() == null ? null : invoices.get(i.getRelatedInvoiceId()).getNumber());
     }
 

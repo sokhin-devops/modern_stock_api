@@ -16,8 +16,8 @@ import com.modernstock.business.BranchScope;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Reorder levels per branch (FR-4.7): a branch keeps its own level, or the product's when it has none; 0 = not watched
- * there. A view over several branches adds up their levels, so "All branches" is low when all of them together hold no
+ * Reorder levels per branch (FR-4.7, PLAIN.md 11.9): a branch's own manual level first; else the reorder point computed
+ * from its sales history every morning (ReorderPoints); else the product's manual level. 0 = not watched there. A view over several branches adds up their levels, so "All branches" is low when all of them together hold no
  * more than they keep together. The stock by branch view shows which branch is low.
  */
 @Service
@@ -27,6 +27,7 @@ public class ReorderLevels {
     private final BranchReorderLevelRepository overrides;
     private final BranchRepository branches;
     private final BranchScope scope;
+    private final org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc;
 
     /**
      * SQL for the level of product {@code p} summed over the active branches that match {@code branches}, e.g.
@@ -34,8 +35,9 @@ public class ReorderLevels {
      */
     public static String sql(String branches) {
         return """
-                (select coalesce(sum(coalesce(r.reorder_level, p.reorder_level)), 0) from branches b
+                (select coalesce(sum(coalesce(r.reorder_level, rp.reorder_point, p.reorder_level)), 0) from branches b
                    left join branch_reorder_levels r on r.branch_id = b.id and r.product_id = p.id
+                   left join reorder_points rp on rp.branch_id = b.id and rp.product_id = p.id
                   where b.is_active and %s)""".formatted(branches);
     }
 
@@ -62,11 +64,21 @@ public class ReorderLevels {
             overrides.findByProductIdInAndBranchIdIn(products.stream().map(Product::getId).toList(), branchIds)
                     .forEach(o -> own.put(o.getProductId() + "-" + o.getBranchId(), o.getReorderLevel()));
         }
+        Map<String, BigDecimal> computed = new HashMap<>();
+        if (!products.isEmpty() && !branchIds.isEmpty()) {
+            jdbc.query("select product_id, branch_id, reorder_point from reorder_points where product_id in (:products) and branch_id in (:branches)",
+                    new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                            .addValue("products", products.stream().map(Product::getId).toList()).addValue("branches", branchIds),
+                    rs -> {
+                        computed.put(rs.getLong("product_id") + "-" + rs.getLong("branch_id"), rs.getBigDecimal("reorder_point"));
+                    });
+        }
         Map<Long, Map<Long, BigDecimal>> levels = new HashMap<>();
         for (Product p : products) {
             Map<Long, BigDecimal> byBranch = new HashMap<>();
             for (Long branchId : branchIds) {
-                byBranch.put(branchId, own.getOrDefault(p.getId() + "-" + branchId, p.getReorderLevel()));
+                String key = p.getId() + "-" + branchId;
+                byBranch.put(branchId, own.containsKey(key) ? own.get(key) : computed.getOrDefault(key, p.getReorderLevel()));
             }
             levels.put(p.getId(), byBranch);
         }

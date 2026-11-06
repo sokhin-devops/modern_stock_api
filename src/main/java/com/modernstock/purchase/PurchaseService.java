@@ -558,6 +558,6 @@ public class PurchaseService {
                 && b.getDueDate().isBefore(Dates.today());
         return new BillResponse(b.getId(), b.getNumber(), b.getSupplierId(), suppliers.get(b.getSupplierId()).getName(),
                 b.getBranchId(), b.getGoodsReceiptId(), b.getSupplierInvoiceNo(), b.getBillDate(), b.getDueDate(),
-                b.getTotal(), b.getPaidAmount(), b.open(), b.getStatus(), overdue, b.getNote(), b.getPhotoPath() != null);
+                b.getTotal(), b.getPaidAmount(), b.getStatus() == Bill.Status.VOID ? BigDecimal.ZERO : b.open(), b.getStatus(), overdue, b.getNote(), b.getPhotoPath() != null);
     }
 }

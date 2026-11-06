@@ -5,3 +5,6 @@ target/
 *.iml
 .vscode/
 .env
+
+# Local state of `wrangler dev` (DevSecOps.md): never commit
+.wrangler/

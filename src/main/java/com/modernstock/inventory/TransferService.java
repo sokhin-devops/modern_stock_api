@@ -107,6 +107,7 @@ public class TransferService {
     private final StockRequestRepository stockRequests;
     private final Reservations reservations;
     private final StockAdjustmentRepository adjustmentRows;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     @Transactional
     public TransferResponse create(TransferRequest req) {
@@ -209,6 +210,9 @@ public class TransferService {
         t.setStatus(StockTransfer.Status.IN_TRANSIT);
         t.setSentAt(Instant.now());
         t.setSentBy(CurrentUser.id());
+        // those who receive at the destination are told (PLAIN.md 11.9 step 2b)
+        events.publishEvent(new com.modernstock.notification.InAppNotifications.TransferSent(BusinessContext.businessId(), t.getId(),
+                t.getNumber(), branchOf(t.getFromWarehouseId()), branchOf(t.getToWarehouseId()), CurrentUser.id()));
         return toResponse(t);
     }
 

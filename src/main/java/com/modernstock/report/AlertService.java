@@ -38,10 +38,11 @@ public class AlertService {
     public enum Level { DANGER, WARN, INFO }
 
     public record Alert(Kind kind, Level level, long count,
-                        @Schema(description = "EXPIRING_1..3: the window in days; TRANSFERS_LATE: days in transit") Integer days) {
+                        @Schema(description = "EXPIRING_1..3: the window in days; TRANSFERS_LATE: days in transit") Integer days,
+                        @Schema(description = "The member marked it read and nothing was added since") boolean read) {
     }
 
-    public record Alerts(long total, List<Alert> alerts) {
+    public record Alerts(@Schema(description = "For the badge: the counts of the alerts not read yet") long total, List<Alert> alerts) {
     }
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -130,7 +131,36 @@ public class AlertService {
             add(list, Kind.RENEWAL_SOON, Level.INFO, billing.get("renewal_soon"));
         }
         list.sort((a, b) -> a.kind().compareTo(b.kind()));
-        return new Alerts(list.stream().mapToLong(Alert::count).sum(), list);
+        Map<String, Long> reads = new java.util.HashMap<>();
+        jdbc.query("select kind, read_count from alert_reads where business_id = :business and user_id = :user",
+                p.addValue("user", BusinessContext.require().userId()), rs -> {
+                    reads.put(rs.getString("kind"), rs.getLong("read_count"));
+                });
+        List<Alert> marked = list.stream()
+                .map(a -> new Alert(a.kind(), a.level(), a.count(), a.days(), reads.getOrDefault(a.kind().name(), 0L) >= a.count()))
+                .toList();
+        return new Alerts(marked.stream().filter(a -> !a.read()).mapToLong(Alert::count).sum(), marked);
+    }
+
+    /**
+     * Marks one kind, or every alert shown now (kind null), read at its current count. It is unread again when its count
+     * grows; a kind that is gone is forgotten next time it is marked.
+     */
+    @Transactional
+    public Alerts markRead(Kind kind) {
+        Long user = BusinessContext.require().userId();
+        for (Alert a : alerts().alerts()) {
+            if (kind != null && a.kind() != kind) {
+                continue;
+            }
+            jdbc.update("""
+                    insert into alert_reads (business_id, user_id, kind, read_count, read_at)
+                    values (:business, :user, :kind, :count, now())
+                    on conflict (business_id, user_id, kind) do update set read_count = excluded.read_count, read_at = now()
+                    """, new MapSqlParameterSource().addValue("business", BusinessContext.businessId()).addValue("user", user)
+                    .addValue("kind", a.kind().name()).addValue("count", a.count()));
+        }
+        return alerts();
     }
 
     private static void add(List<Alert> list, Kind kind, Level level, Object count) {
@@ -140,7 +170,7 @@ public class AlertService {
     private static void add(List<Alert> list, Kind kind, Level level, Object count, Integer days) {
         long n = count == null ? 0 : ((Number) count).longValue();
         if (n > 0) {
-            list.add(new Alert(kind, level, n, days));
+            list.add(new Alert(kind, level, n, days, false));
         }
     }
 }

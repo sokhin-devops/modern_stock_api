@@ -74,6 +74,28 @@ public class BalanceService {
         return customers(java.util.List.of(id)).getOrDefault(id, BigDecimal.ZERO);
     }
 
+    /** Of what each customer owes, the part past its due date (open invoices due before today, Phnom Penh time). */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> customersOverdue(Collection<Long> ids) {
+        return query("""
+                SELECT customer_id, SUM(total - paid_amount) FROM invoices
+                WHERE business_id = :businessId AND customer_id IN (:ids) AND status IN ('UNPAID', 'PARTLY_PAID')
+                  AND due_date < (now() AT TIME ZONE 'Asia/Phnom_Penh')::date
+                GROUP BY customer_id
+                """, ids);
+    }
+
+    /** Of what is owed to each supplier, the part past its due date. */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> suppliersOverdue(Collection<Long> ids) {
+        return query("""
+                SELECT supplier_id, SUM(total - paid_amount) FROM bills
+                WHERE business_id = :businessId AND supplier_id IN (:ids) AND status IN ('UNPAID', 'PARTLY_PAID')
+                  AND due_date < (now() AT TIME ZONE 'Asia/Phnom_Penh')::date
+                GROUP BY supplier_id
+                """, ids);
+    }
+
     private Map<Long, BigDecimal> query(String sql, Collection<Long> ids) {
         Map<Long, BigDecimal> result = new HashMap<>();
         if (ids.isEmpty()) {
