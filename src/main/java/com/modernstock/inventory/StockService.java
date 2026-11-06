@@ -228,6 +228,10 @@ public class StockService {
         boolean allowNegative = settings.get().allowNegativeStock();
         for (StockMovement m : original) {
             BigDecimal back = m.getQty().negate();
+            if (m.getQty().signum() > 0
+                    && (m.getType() == StockMovement.Type.GOODS_RECEIPT || m.getType() == StockMovement.Type.OPENING)) {
+                undoAverageCost(m.getProductId(), m.getQty(), m.getUnitCost());
+            }
             StockLevel level = lockLevel(m.getProductId(), m.getWarehouseId());
             if (back.signum() < 0 && level.getQtyOnHand().add(back).signum() < 0 && !allowNegative) {
                 throw insufficient(products.get(m.getProductId()), level.getQtyOnHand());
@@ -239,6 +243,23 @@ public class StockService {
             level.setQtyOnHand(level.getQtyOnHand().add(back));
             write(m.getProductId(), m.getWarehouseId(), m.getBatchId(), m.getType(), back, m.getUnitCost(),
                     level.getQtyOnHand(), ref);
+        }
+    }
+
+    /**
+     * A voided purchase or opening stock takes its cost back out of the average: the formula below, run backwards.
+     * When nothing would be left, or the result would be below zero (stock sold since at other costs), the average stays.
+     */
+    private void undoAverageCost(Long productId, BigDecimal qty, BigDecimal unitCost) {
+        Product locked = products.lockById(productId).orElseThrow();
+        BigDecimal nowQty = levels.totalQty(locked.getId()).add(transfers.inTransitQty(locked.getId()));
+        BigDecimal leftQty = nowQty.subtract(qty);
+        if (leftQty.signum() <= 0) {
+            return;
+        }
+        BigDecimal leftValue = nowQty.multiply(locked.getAvgCost()).subtract(qty.multiply(unitCost));
+        if (leftValue.signum() >= 0) {
+            locked.setAvgCost(leftValue.divide(leftQty, COST_SCALE, RoundingMode.HALF_UP));
         }
     }
 

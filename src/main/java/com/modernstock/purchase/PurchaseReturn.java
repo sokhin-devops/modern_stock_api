@@ -55,4 +55,8 @@ public class PurchaseReturn extends TenantEntity {
     @JoinColumn(name = "return_id", nullable = false)
     @OrderBy("id")
     private List<PurchaseReturnItem> items = new ArrayList<>();
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

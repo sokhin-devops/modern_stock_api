@@ -61,4 +61,8 @@ public class CreditNote extends TenantEntity {
             status = Status.CLOSED;
         }
     }
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }

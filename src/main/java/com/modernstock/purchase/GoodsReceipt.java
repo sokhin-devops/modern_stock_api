@@ -47,4 +47,8 @@ public class GoodsReceipt extends TenantEntity {
     @JoinColumn(name = "goods_receipt_id", nullable = false)
     @OrderBy("id")
     private List<GoodsReceiptItem> items = new ArrayList<>();
+
+    /** When and by whom it was voided (PLAIN.md 11.1); empty while it stands. */
+    private Instant voidedAt;
+    private Long voidedBy;
 }
